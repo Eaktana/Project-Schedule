@@ -1,0 +1,58 @@
+{% extends "add.html" %}
+{% load static %}
+{% block title %}คาบที่เรียนได้ | ระบบจัดตารางสอน{% endblock %}
+{% block content %}
+<div class="card shadow-sm">
+  <div class="card-header"><h5 class="mb-0">ข้อมูลคาบที่เรียนได้</h5></div>
+  <div class="card-body p-4">
+    <form id="groupAllowForm" class="row g-3" method="post">
+     {% csrf_token %} 
+      <div class="col-md-4">
+        <label class="form-label" for="ga_dept_id">รหัสภาค</label>
+        <select id="ga_dept_id" class="form-select">
+          <option value="">-- เลือกภาค --</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="ga_slot_id">รหัสคาบ</label>
+        <select id="ga_slot_id" class="form-select">
+          <option value="">-- เลือกคาบ --</option>
+        </select>
+      </div>
+      <div class="col-12">
+        <div class="d-flex justify-content-end mt-3 gap-2">
+          <button id="btnCancelGroupAllowEdit" type="button" class="btn btn-outline-secondary d-none">ยกเลิก</button>
+          <button id="btnAddGroupAllow" type="button" class="btn btn-primary-gradient px-4">
+            <i class="bi bi-plus-lg me-2"></i><span>เพิ่มข้อมูล</span>
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm mt-4">
+  <div class="card-header d-flex align-items-center">
+    <i class="bi bi-table me-2"></i><h5 class="mb-0">รายการคาบที่เรียนได้</h5>
+  </div>
+  <div class="card-body p-4">
+    <div class="table-responsive table-rounded">
+      <table class="table align-middle mb-0">
+        <thead><tr><th>รหัสภาค</th><th>รหัสคาบ</th><th>จัดการ</th></tr></thead>
+        <tbody id="groupAllowTableBody">
+          <tr class="empty-row"><td colspan="3" class="text-center text-muted">ไม่มีข้อมูลคาบที่เรียนได้</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="d-flex justify-content-end mt-3">
+      <button id="btnDeleteAllGroupAllow" class="btn btn-danger btn-lg px-4">
+        <i class="bi bi-trash3 me-2"></i>ลบทั้งหมด
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{% static 'js/controller.js' %}"></script>
+<script src="{% static 'js/groupallow.js' %}"></script>
+{% endblock %}

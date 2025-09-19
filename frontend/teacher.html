@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>ระบบการจัดตารางสอบอัตโนมัติ</title>
+  <!-- Bootstrap 5 CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <style>
+    body {
+      font-family: sans-serif;
+      background-color: #F4EDD0;
+      margin: 0;
+      padding: 0;
+    }
+    .header {
+      background-color: #7a4c20;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .logo-area {
+      display: flex;
+      align-items: center;
+    }
+
+    .logo-area img {
+      height: 28px;
+      margin-right: 8px;
+    }
+
+    .header-text {
+      font-size: 16px;
+      white-space: nowrap;
+    }
+
+    .top-right-links {
+      display: flex;
+      gap: 16px;
+      font-size: 13px;
+      color: white;
+    }
+
+    .top-right-links a {
+      color: white;
+      text-decoration: none;
+    }
+
+    /* Navbar */
+    .navbar-wrapper {
+      display: flex;
+      justify-content: center;
+      position: relative;
+      z-index: 1;
+      margin-top: -10px;
+    }
+    
+    .navbar {
+      background-color: white;
+      display: flex;
+      justify-content: center;
+      border-radius: 0 0 12px 12px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+      padding: 0;
+      width: fit-content;
+      max-width: 100%;
+    }
+    
+    .navbar a {
+      text-decoration: none;
+      color: black;
+      padding: 18px;
+      font-size: 14px;
+      display: inline-block;
+      position: relative;
+    }
+    
+    .navbar a.active span::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      bottom: -4px;
+      height: 3px;
+      width: 100%;
+      background-color: #c44343;
+      border-radius: 2px;
+      transition: all 0.3s ease;
+    }
+
+    .content-wrapper {
+      background-color: #F4EDD0;
+      padding: 20px;
+      display: flex;
+      gap: 20px;
+    }
+    .form-section {
+      background-color: white;
+      padding: 20px;
+      width: 40%;
+    }
+    .form-section input,
+    .form-section select {
+      margin-bottom: 10px;
+    }
+    .form-section button {
+      background-color: #2d6653;
+      color: white;
+      border: none;
+    }
+    .table-section {
+      background-color: white;
+      padding: 20px;
+      width: 60%;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: white;
+    }
+    th, td {
+      border: 1px solid black;
+      padding: 8px;
+      text-align: center;
+    }
+    .btn-green {
+      background-color: #2d6653;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+    }
+    .btn-green:hover {
+      background-color: #25552a;
+    }
+  </style>
+</head>
+<body>
+
+<div class="main-container">
+        <div class="header">
+          <div class="logo-area">
+            <img src="image/logo.png" alt="โลโก้">
+            <div class="header-text">ระบบการจัดตารางสอนออนไลน์โดยอัลกอริธึมการจัดตารางที่เหมาะสม</div>
+          </div>
+          <div class="top-right-links">
+            <a href="aboutme.html">📖 คู่มือการใช้งาน</a>
+            <a href="manual.html">👤 เกี่ยวกับเรา</a>
+          </div>
+</div>
+
+<div class="navbar-wrapper">
+    <div class="navbar">
+      <a href="index.html" class="active">หน้าหลัก</a>
+      <a href="pre.html" class="active">วิชาที่ต้องสอนล่วงหน้า</a>
+      <a href="teacher.html" class="active">ข้อมูลอาจารย์</a>
+      <a href="room.html" class="active">ห้องเรียน</a>
+      <a href="student.html" class="active">กลุ่มเรียนของนักศึกษา</a>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="content-wrapper">
+    <!-- Form -->
+    <div class="form-section">
+      <h4>ข้อมูลอาจารย์</h4>
+  
+        <!-- File Upload -->
+        <div class="form-group">
+          <small class="form-text text-muted">กดเพื่อเลือกไฟล์ CSV:</small>
+          <input type="file" class="form-control" id="csvFileInput" accept=".csv" onchange="uploadCSV()">
+          <small class="form-text text-muted">รองรับไฟล์สกุล .csv เท่านั้น</small>
+        </div>
+  
+        <!-- Divider -->
+        <div class="d-flex align-items-center mb-4">
+          <hr class="flex-grow-1" style="height: 2px; background: black; border: none;" />
+          <span class="mx-2">กรอกด้านล่างเพื่อสร้างไฟล์ csv</span>
+          <hr class="flex-grow-1" style="height: 2px; background: black; border: none;" />
+        </div>
+  
+      <input type="text" class="form-control" placeholder="อาจารย์" id="teacher">
+      <input type="text" class="form-control" placeholder="รหัสวิชา" id="code">
+      <select class="form-control mb-2" id="type">
+        <option value="">เลือกประเภทรายวิชา</option>
+        <option value="ฮาร์ดแวร์">ไฟฟ้าและอิเล็กทรอนิกส์</option>
+        <option value="ซอฟต์แวร์">คอมพิวเตอร์</option>
+        <option value="IoT">เน็ตเวิร์ก (หรือ เครือข่าย)</option>
+        <option value="IoT">IoT (Internet of Things)</option>
+      </select>
+      <input type="text" class="form-control" placeholder="กลุ่มเรียน" id="group">
+      <input type="number" class="form-control" placeholder="ทฤษฎี" id="theory">
+      <input type="number" class="form-control" placeholder="ปฏิบัติ" id="lab">
+      <button class="btn-green w-100 mt-2" onclick="addRow()">เพิ่ม</button>
+    </div>
+
+    <script>
+      function addRow() {
+        const teacher = document.getElementById("teacher").value;
+        const code = document.getElementById("code").value;
+        const type = document.getElementById("type").value;
+        const group = document.getElementById("group").value;
+        const theory = document.getElementById("theory").value;
+        const lab = document.getElementById("lab").value;
+      
+        if (!teacher || !code || !type || !group || !theory || !lab) {
+          alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+          return;
+        }
+      
+        fetch('/add-teacher/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: teacher,
+            subject_code: code,
+            subject_type: type,
+            group: group,
+            theory_hours: theory,
+            lab_hours: lab
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === 'success') {
+            alert("บันทึกสำเร็จ");
+            // คุณสามารถเพิ่มฟังก์ชัน reload หรือแสดงข้อมูลใหม่ได้ตรงนี้
+          } else {
+            alert("เกิดข้อผิดพลาด");
+          }
+        })
+        .catch(error => {
+          console.error("Error:", error);
+          alert("เกิดข้อผิดพลาดในการเชื่อมต่อ");
+        });
+      
+        // เคลียร์ฟอร์ม
+        document.getElementById("teacher").value = "";
+        document.getElementById("code").value = "";
+        document.getElementById("type").value = "";
+        document.getElementById("group").value = "";
+        document.getElementById("theory").value = "";
+        document.getElementById("lab").value = "";
+      }
+      </script>      
+  
+    <!-- Table -->
+    <div class="table-section">
+      <table id="dataTable">
+        <thead>
+          <tr>
+            <th>ชื่ออาจารย์</th>
+            <th>รหัสวิชา</th>
+            <th>กลุ่มเรียน</th>
+            <th>ชั่วโมงคาบทฤษฎี</th>
+            <th>ชั่วโมงคาบปฏิบัติ</th>
+            <th>จัดการ</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="d-flex justify-content-end">
+        <button class="btn-green mt-3" onclick="downloadCSV()">สร้าง</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Edit Modal -->
+  <div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">แก้ไขข้อมูล</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="text" class="form-control mb-2" id="editTeacher">
+          <input type="text" class="form-control mb-2" id="editCode">
+          <input type="text" class="form-control mb-2" id="editType">
+          <input type="text" class="form-control mb-2" id="editGroup">
+          <input type="number" class="form-control mb-2" id="editTheory">
+          <input type="number" class="form-control mb-2" id="editLab">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+          <button type="button" class="btn btn-primary" onclick="saveEdit()">บันทึก</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Scripts -->
+  <script>
+    let editRow = null;
+  
+    function addRow() {
+      const teacher = document.getElementById("teacher").value;
+      const code = document.getElementById("code").value;
+      const type = document.getElementById("type").value;
+      const group = document.getElementById("group").value;
+      const theory = document.getElementById("theory").value;
+      const lab = document.getElementById("lab").value;
+  
+      if (!teacher || !code || !type || !group || !theory || !lab) {
+        alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+        return;
+      }
+  
+      const table = document.getElementById("dataTable").getElementsByTagName('tbody')[0];
+      const row = table.insertRow();
+      row.innerHTML = `
+        <td>${teacher}</td>
+        <td>${code} (${type})</td>
+        <td>${group}</td>
+        <td>${theory}</td>
+        <td>${lab}</td>
+        <td>
+          <button class="btn btn-warning btn-sm me-1" onclick="openEditModal(this)">แก้ไข</button>
+          <button class="btn btn-danger btn-sm" onclick="confirmDelete(this)">ลบ</button>
+        </td>
+      `;
+  
+      document.getElementById("teacher").value = "";
+      document.getElementById("code").value = "";
+      document.getElementById("type").value = "";
+      document.getElementById("group").value = "";
+      document.getElementById("theory").value = "";
+      document.getElementById("lab").value = "";
+    }
+  
+    function confirmDelete(button) {
+      if (confirm("คุณแน่ใจหรือไม่ว่าต้องการลบแถวนี้?")) {
+        const row = button.parentElement.parentElement;
+        row.remove();
+      }
+    }
+  
+    function openEditModal(button) {
+      editRow = button.parentElement.parentElement;
+      const cells = editRow.getElementsByTagName("td");
+      document.getElementById("editTeacher").value = cells[0].innerText;
+      const codeText = cells[1].innerText;
+      const [code, type] = codeText.split(" (");
+      document.getElementById("editCode").value = code;
+      document.getElementById("editType").value = type.replace(")", "");
+      document.getElementById("editGroup").value = cells[2].innerText;
+      document.getElementById("editTheory").value = cells[3].innerText;
+      document.getElementById("editLab").value = cells[4].innerText;
+      new bootstrap.Modal(document.getElementById("editModal")).show();
+    }
+  
+    function saveEdit() {
+      const teacher = document.getElementById("editTeacher").value;
+      const code = document.getElementById("editCode").value;
+      const type = document.getElementById("editType").value;
+      const group = document.getElementById("editGroup").value;
+      const theory = document.getElementById("editTheory").value;
+      const lab = document.getElementById("editLab").value;
+  
+      const cells = editRow.getElementsByTagName("td");
+      cells[0].innerText = teacher;
+      cells[1].innerText = `${code} (${type})`;
+      cells[2].innerText = group;
+      cells[3].innerText = theory;
+      cells[4].innerText = lab;
+      bootstrap.Modal.getInstance(document.getElementById("editModal")).hide();
+    }
+  
+    function downloadCSV() {
+      let csv = "ชื่ออาจารย์,รหัสวิชา,กลุ่มเรียน,ชั่วโมงคาบทฤษฎี,ชั่วโมงคาบปฏิบัติ\n";
+      document.querySelectorAll("#dataTable tbody tr").forEach(row => {
+        const cells = row.querySelectorAll("td");
+        const rowData = Array.from(cells).slice(0, 5).map(cell => `"${cell.textContent.trim()}"`).join(",");
+        csv += rowData + "\n";
+      });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "ตารางอาจารย์.csv");
+      link.click();
+    }
+  
+    function uploadCSV() {
+  const fileInput = document.getElementById("csvFileInput");
+  const file = fileInput.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+
+  reader.onload = function (e) {
+    const decoder = new TextDecoder("utf-8");
+    const text = decoder.decode(e.target.result);
+    const lines = text.trim().split("\n");
+
+    // ✅ ตรวจสอบหัวตาราง
+    const isValidHeader = lines[0]?.includes("ชื่ออาจารย์");
+    if (!isValidHeader) {
+      alert("รูปแบบไฟล์ไม่ถูกต้อง กรุณาใช้เทมเพลตที่กำหนด");
+      return;
+    }
+
+    const dataLines = lines.slice(1); // ข้ามหัวตาราง
+
+    const table = document.getElementById("dataTable").getElementsByTagName('tbody')[0];
+
+    dataLines.forEach(line => {
+      if (line.trim() === "") return;
+      const fields = line.split(",").map(field => field.replace(/\"/g, "").trim());
+      const [teacher, code, group, theory, lab] = fields;
+
+      if (teacher && code && group && theory && lab  ) {
+        const row = table.insertRow();
+        row.innerHTML = `
+          <td>${teacher}</td>
+          <td>${code}</td>
+          <td>${group}</td>
+          <td>${theory}</td>
+          <td>${lab}</td>
+          <td>
+            <button class="btn btn-warning btn-sm me-1" onclick="editRow(this)">แก้ไข</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteRow(this)">ลบ</button>
+          </td>
+        `;
+      }
+    });
+  };
+
+  reader.readAsArrayBuffer(file);
+}
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

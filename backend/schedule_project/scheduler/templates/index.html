@@ -1,0 +1,282 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ระบบจัดตารางสอน</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+
+  <!-- App CSS -->
+  <link rel="stylesheet" href="{% static 'css/bass.css' %}?v=2">
+</head>
+<body>
+  <!-- Header -->
+  <header class="bg-white border-bottom py-3">
+    <div class="container-fluid" style="max-width: 1400px;">
+      <div class="row align-items-center">
+        <div class="col-md-6">
+          <div class="d-flex align-items-center">
+            <div class="header-icon me-3">
+              <i class="bi bi-calendar-check text-white fs-4"></i>
+            </div>
+            <h1 class="h4 mb-0 fw-bold text-dark">ระบบจัดตารางสอน</h1>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="d-flex justify-content-end align-items-center">
+            <a class="btn btn-outline-secondary me-3" href="#"><i class="bi bi-file-text me-2"></i>คู่มือ</a>
+            <a class="btn btn-outline-primary" href="#"><i class="bi bi-person me-2"></i>เกี่ยวกับเรา</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+<!-- Navigation -->
+<nav class="bg-white border-bottom">
+  <div class="container-fluid" style="max-width: 1400px;">
+    <ul class="nav nav-tabs border-0">
+      <li class="nav-item">
+        <a class="nav-link {% if request.resolver_match.url_name == 'home' %}active{% endif %}"
+           href="{% url 'home' %}" {% if request.resolver_match.url_name == 'home' %}aria-current="page"{% endif %}>
+          <i class="bi bi-house me-2"></i>หน้าหลัก
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.resolver_match.url_name == 'subject' %}active{% endif %}"
+           href="{% url 'subject' %}" {% if request.resolver_match.url_name == 'subject' %}aria-current="page"{% endif %}>
+          <i class="bi bi-plus-square me-2"></i>เพิ่มข้อมูล
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.resolver_match.url_name == 'pre' %}active{% endif %}"
+           href="{% url 'pre' %}" {% if request.resolver_match.url_name == 'pre' %}aria-current="page"{% endif %}>
+          <i class="bi bi-book me-2"></i>ลงล่วงหน้า
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.resolver_match.url_name == 'course' %}active{% endif %}"
+           href="{% url 'course' %}" {% if request.resolver_match.url_name == 'course' %}aria-current="page"{% endif %}>
+          <i class="bi bi-people me-2"></i>รายวิชา
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.resolver_match.url_name == 'weekactivity' %}active{% endif %}"
+           href="{% url 'weekactivity' %}" {% if request.resolver_match.url_name == 'weekactivity' %}aria-current="page"{% endif %}>
+          <i class="bi bi-activity me-2"></i>กิจกรรม
+        </a>
+      </li>
+    </ul>
+  </div>
+</nav>
+  <!-- Main -->
+  <main class="container-fluid py-5" style="max-width: 1400px;">
+    <!-- Action Cards -->
+    <div class="row g-4 mb-5">
+      <!-- สร้างตารางสอน -->
+      <div class="col-lg-6">
+        <div class="card action-card h-100">
+          <div class="card-header card-header-blue">
+            <h5 class="card-title mb-0 d-flex align-items-center">
+              <i class="bi bi-bar-chart-line me-2"></i>สร้างตารางสอน
+            </h5>
+          </div>
+          <div class="card-body text-center py-5">
+            <div class="icon-circle icon-circle-blue">
+              <i class="bi bi-calendar-plus" style="font-size: 2rem;"></i>
+            </div>
+            <h3 class="h5 fw-bold mb-4 text-dark">สร้างตารางสอน</h3>
+            <button class="btn btn-create w-100" onclick="generateSchedule()">
+              <i class="bi bi-plus-lg me-2"></i>กดเพื่อสร้างตารางสอน
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ดูตารางสอน -->
+      <div class="col-lg-6">
+        <div class="card action-card h-100">
+          <div class="card-header card-header-green">
+            <h5 class="card-title mb-0 d-flex align-items-center">
+              <i class="bi bi-calendar-check me-2"></i>ดูตารางสอน
+            </h5>
+          </div>
+          <div class="card-body text-center py-5">
+            <div class="icon-circle icon-circle-green">
+              <i class="bi bi-calendar-event" style="font-size: 2rem;"></i>
+            </div>
+            <h3 class="h5 fw-bold mb-4 text-dark">กดเพื่อดูตารางสอน</h3>
+            <button class="btn btn-view w-100" onclick="viewSchedule()">
+              <i class="bi bi-calendar-check me-2"></i>กดเพื่อดูตารางสอน
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Statistics -->
+    <div class="row g-4">
+      <div class="col-lg-3 col-md-6">
+        <div class="card stat-card">
+          <div class="card-body p-4">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <p class="text-muted mb-1 small">อาจารย์</p>
+                <h2 class="h1 fw-bold text-dark mb-0">{{ total_teachers }}</h2>
+              </div>
+              <div class="stat-icon" style="background-color: rgba(79, 70, 229, 0.1);">
+                <i class="bi bi-people fs-4" style="color: #4f46e5;"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-3 col-md-6">
+        <div class="card stat-card">
+          <div class="card-body p-4">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <p class="text-muted mb-1 small">รายวิชา</p>
+                <h2 class="h1 fw-bold text-dark mb-0">{{ total_subjects }}</h2>
+              </div>
+              <div class="stat-icon" style="background-color: rgba(5, 150, 105, 0.1);">
+                <i class="bi bi-book fs-4" style="color: #059669;"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-3 col-md-6">
+        <div class="card stat-card">
+          <div class="card-body p-4">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <p class="text-muted mb-1 small">ห้องเรียน</p>
+                <h2 class="h1 fw-bold text-dark mb-0">{{ total_rooms }}</h2>
+              </div>
+              <div class="stat-icon" style="background-color: rgba(147, 51, 234, 0.1);">
+                <i class="bi bi-geo-alt fs-4" style="color: #9333ea;"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-3 col-md-6">
+        <div class="card stat-card">
+          <div class="card-body p-4">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <p class="text-muted mb-1 small">กิจกรรม</p>
+                <h2 class="h1 fw-bold text-dark mb-0">{{ total_activity }}</h2>
+              </div>
+              <div class="stat-icon" style="background-color: rgba(249, 115, 22, 0.1);">
+                <i class="bi bi-activity fs-4" style="color: #f97316;"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Schedule Modal -->
+  <div class="modal fade" id="scheduleModal" tabindex="-1" aria-labelledby="scheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xxl modal-dialog-centered modal-dialog-scrollable" style="max-width:96vw;">
+      <div class="modal-content">
+        <div class="modal-header schedule-header">
+          <h5 class="modal-title" id="scheduleModalLabel">
+            <i class="bi bi-calendar3 me-2"></i>ตารางสอน
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <!-- เลือกหมวด -->
+          <div id="tt-select-view" class="d-none">
+            <div class="row g-2 align-items-end mb-3">
+              <div class="col-12 col-md-4">
+                <label class="form-label mb-1">เลือกประเภทเพื่อดูตารางสอน</label>
+                <select id="ttCategory" class="form-select">
+                  <option value="Teacher">อาจารย์</option>
+                  <option value="Room">ห้อง</option>
+                  <option value="Student_Group">กลุ่มนักศึกษา</option>
+                </select>
+              </div>
+            </div>
+            <div id="tt-select-spinner" class="text-center py-5 d-none">
+              <div class="spinner-border text-primary" style="width:3rem; height:3rem;"></div>
+              <p class="mt-3 text-muted fs-6">กำลังโหลดข้อมูล...</p>
+            </div>
+            <div id="tt-items-grid" class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 g-3"></div>
+            <div id="tt-select-empty" class="empty-state d-none">
+              <i class="bi bi-exclamation-triangle"></i>
+              <h5 class="mt-3 mb-2">ไม่พบข้อมูล</h5>
+            </div>
+          </div>
+
+          <!-- ตาราง -->
+          <div id="tt-table-view" class="d-none">
+            <div class="mb-2">
+              <div class="d-flex flex-column flex-lg-row gap-2 align-items-stretch align-items-lg-center">
+                <button class="btn btn-outline-secondary" id="tt-back-btn">← กลับไปรายการ</button>
+                <div class="flex-grow-1 position-relative">
+                  <span class="position-absolute top-50 start-0 translate-middle-y ps-3 text-secondary">
+                    <i class="bi bi-search"></i>
+                  </span>
+                  <input id="tt-search" type="text" class="form-control ps-5" placeholder="ค้นหาวิชา, รหัส...">
+                </div>
+                <button class="btn btn-outline-primary" id="tt-toggle-view">
+                  <i class="bi bi-funnel me-1"></i><span id="tt-toggle-text">มุมมองรายการ</span>
+                </button>
+              </div>
+            </div>
+
+            <div id="tt-header" class="mb-3">
+              <h6 class="mb-1">
+                <i class="bi bi-calendar3 me-1"></i>
+                <span id="tt-title">ตารางสอน</span>
+              </h6>
+              <div class="text-muted" id="tt-desc"></div>
+            </div>
+
+            <div id="tt-infobar" class="alert alert-info d-none">
+              <i class="bi bi-info-circle me-1"></i>
+              <span id="tt-infobar-text">พบ 0 รายการ</span>
+            </div>
+
+            <!-- Grid -->
+            <div id="tt-grid-wrap">
+              <div class="table-responsive">
+                <table id="tt-table" class="table table-bordered align-middle"></table>
+              </div>
+              <div id="tt-grid-empty" class="empty-state d-none">
+                <i class="bi bi-exclamation-triangle"></i>
+                <h5 class="mt-3 mb-2">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</h5>
+              </div>
+            </div>
+
+            <!-- List -->
+            <div id="tt-list-wrap" class="d-none">
+              <div class="row g-3" id="tt-list-grid"></div>
+              <div id="tt-list-empty" class="empty-state d-none">
+                <i class="bi bi-exclamation-triangle"></i>
+                <h5 class="mt-3 mb-2">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</h5>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+  <script src="{% static 'js/index.js' %}?v=2"></script>
+</body>
+</html>

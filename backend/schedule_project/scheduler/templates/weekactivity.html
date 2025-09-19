@@ -1,0 +1,270 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ข้อมูลกิจกรรม - ระบบจัดตารางสอน</title>
+
+  <!-- Bootstrap CSS & Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+  <!-- Page CSS -->
+  <link rel="stylesheet" href="{% static 'css/weekactivity.css' %}">
+</head>
+<body>
+  <!-- Notification Container -->
+  <div class="notification-container" id="notificationContainer"></div>
+
+  <!-- Header -->
+  <header class="bg-white border-bottom py-3">
+    <div class="container-fluid" style="max-width: 1400px;">
+      <div class="row align-items-center">
+        <div class="col-md-6">
+          <div class="d-flex align-items-center">
+            <div class="header-icon me-3">
+              <i class="bi bi-calendar-check text-white fs-4"></i>
+            </div>
+            <h1 class="h4 mb-0 fw-bold text-dark">ระบบจัดตารางสอน</h1>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="d-flex justify-content-end align-items-center">
+            <button class="btn btn-outline-secondary me-3">
+              <i class="bi bi-file-text me-2"></i>คู่มือ
+            </button>
+            <button class="btn btn-outline-primary">
+              <i class="bi bi-person me-2"></i>เกี่ยวกับเรา
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+<!-- Navigation -->
+<nav class="bg-white border-bottom">
+  <div class="container-fluid" style="max-width: 1400px;">
+    <ul class="nav nav-tabs border-0">
+      <li class="nav-item">
+        <a class="nav-link {% if request.resolver_match.url_name == 'home' %}active{% endif %}"
+           href="{% url 'home' %}" {% if request.resolver_match.url_name == 'home' %}aria-current="page"{% endif %}>
+          <i class="bi bi-house me-2"></i>หน้าหลัก
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.resolver_match.url_name == 'subject' %}active{% endif %}"
+           href="{% url 'subject' %}" {% if request.resolver_match.url_name == 'subject' %}aria-current="page"{% endif %}>
+          <i class="bi bi-plus-square me-2"></i>เพิ่มข้อมูล
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.resolver_match.url_name == 'pre' %}active{% endif %}"
+           href="{% url 'pre' %}" {% if request.resolver_match.url_name == 'pre' %}aria-current="page"{% endif %}>
+          <i class="bi bi-book me-2"></i>ลงล่วงหน้า
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.resolver_match.url_name == 'course' %}active{% endif %}"
+           href="{% url 'course' %}" {% if request.resolver_match.url_name == 'course' %}aria-current="page"{% endif %}>
+          <i class="bi bi-people me-2"></i>รายวิชา
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.resolver_match.url_name == 'weekactivity' %}active{% endif %}"
+           href="{% url 'weekactivity' %}" {% if request.resolver_match.url_name == 'weekactivity' %}aria-current="page"{% endif %}>
+          <i class="bi bi-activity me-2"></i>กิจกรรม
+        </a>
+      </li>
+    </ul>
+  </div>
+</nav>
+
+  <!-- Main Content -->
+  <main class="container-fluid py-5" style="max-width: 1400px;">
+    <div id="activity-form"
+     data-endpoint-days="/api/meta/days/"
+     data-endpoint-start="/api/meta/start-times/?day="
+     data-endpoint-stop="/api/meta/stop-times/?day={day}&start={start}">
+    </div>
+
+    <div id="activity-edit"
+        data-endpoint-days="/api/meta/days/"
+        data-endpoint-start="/api/meta/start-times/?day="
+        data-endpoint-stop="/api/meta/stop-times/?day={day}&start={start}">
+    </div>
+    <div class="row g-4">
+      <!-- Form Section -->
+      <div class="col-12">
+        <div class="card content-card">
+          <div class="card-header card-header-purple">
+            <h5 class="card-title mb-0 d-flex align-items-center">
+              <i class="bi bi-activity me-2"></i>จัดการข้อมูลกิจกรรม
+            </h5>
+          </div>
+          <div class="card-body p-4">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="act_name_activity" class="form-label">ชื่อกิจกรรม</label>
+                <input type="text" class="form-control" id="act_name_activity" placeholder="กรอกชื่อกิจกรรม">
+              </div>
+              <div class="col-md-6">
+                <label for="day_activity" class="form-label">วัน</label>
+                <select class="form-select" id="day_activity"></select>
+              </div>
+              <div class="col-12 col-md-6 col-lg-4">
+                  <label for="hours_activity" class="form-label">จำนวนชั่วโมง</label>
+                  <input
+                    type="number"
+                    id="hours_activity"
+                    class="form-control"
+                    step="1"
+                    min="1"
+                  />
+              </div>
+              <div class="col-md-6">
+                <label for="start_time_activity" class="form-label">เวลาเริ่ม</label>
+                <select class="form-select" id="start_time_activity"></select>
+              </div>
+
+              <div class="col-md-6">
+                <label for="stop_time_activity" class="form-label">เวลาสิ้นสุด</label>
+                <select class="form-select" id="stop_time_activity">
+                  <option value="">คำนวณอัตโนมัติ</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <div class="d-flex justify-content-end mt-3">
+                  <button class="btn btn-primary-gradient px-4 py-2" onclick="addActivity()">
+                    <i class="bi bi-plus-lg me-2"></i>เพิ่มข้อมูล
+                  </button>
+                </div>
+              </div>
+            </div><!-- /.row -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Table Section -->
+      <div class="col-12">
+        <div class="card content-card h-100">
+          <div class="card-header card-header-purple">
+            <h5 class="card-title mb-0 d-flex align-items-center">
+              <i class="bi bi-table me-2"></i>รายการกิจกรรม
+            </h5>
+          </div>
+          <div class="card-body p-4">
+            <div class="table-container">
+              <div class="table-responsive">
+                <table class="table table-hover mb-0" id="dataTable">
+                  <thead>
+                    <tr>
+                      <th>ชื่อกิจกรรม</th>
+                      <th>วัน</th>
+                      <th>จำนวนชั่วโมง</th>
+                      <th>เวลาเริ่ม</th>
+                      <th>เวลาสิ้นสุด</th>
+                      <th>จัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for activity in activity %}
+                    <tr data-id="{{ activity.id }}">
+                      <td>{{ activity.act_name_activity }}</td>
+                      <td><span class="badge bg-info">{{ activity.day_activity }}</span></td>
+                      <td><span class="badge bg-primary">{{ activity.hours_activity }}</span></td>
+                      <td><span class="badge bg-success">{{ activity.start_time_activity }}</span></td>
+                      <td><span class="badge bg-warning">{{ activity.stop_time_activity }}</span></td>
+                      <td>
+                        <button class="btn btn-warning-gradient btn-sm me-1" onclick="openEditModal(this)" title="แก้ไข">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-danger-gradient btn-sm" onclick="confirmDelete(this)" title="ลบ">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                      <td colspan="5" class="text-center text-muted">ไม่มีข้อมูลกิจกรรม</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="d-flex justify-content-between mt-4">
+              <button class="btn btn-consistent btn-secondary-consistent" onclick="refreshData()">
+                <i class="bi bi-arrow-clockwise me-2"></i>รีเฟรช
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Edit Modal -->
+  <div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content modal-rounded">
+        <div class="modal-header modal-header-gradient">
+          <h5 class="modal-title">
+            <i class="bi bi-pencil-square me-2"></i>แก้ไขข้อมูลกิจกรรม
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="row g-3">
+            <div class="col-12">
+              <label for="edit_act_name_activity" class="form-label">ชื่อกิจกรรม</label>
+              <input type="text" class="form-control" id="edit_act_name_activity" placeholder="ชื่อกิจกรรม">
+            </div>
+            <div class="col-md-6">
+              <label for="edit_day_activity" class="form-label">วัน</label>
+              <select class="form-select" id="edit_day_activity"></select>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                  <label for="edit_hours_activity" class="form-label">จำนวนชั่วโมง</label>
+                  <input
+                    type="number"
+                    id="edit_hours_activity"
+                    class="form-control"
+                    step="1"
+                    min="1"
+                  />
+            </div>
+            <div class="col-md-6">
+              <label for="edit_start_time_activity" class="form-label">เวลาเริ่ม</label>
+              <select class="form-select" id="edit_start_time_activity"></select>
+            </div>
+            <div class="col-12">
+              <label for="edit_stop_time_activity" class="form-label">เวลาสิ้นสุด</label>
+              <select class="form-select" id="edit_stop_time_activity"></select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-0 p-4">
+          <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">
+            <i class="bi bi-x-lg me-2"></i>ยกเลิก
+          </button>
+          <button type="button" class="btn btn-primary-gradient" onclick="saveEdit()">
+            <i class="bi bi-check-lg me-2"></i>บันทึกการแก้ไข
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+          crossorigin="anonymous"></script>
+
+  <!-- Page JS -->
+ <script src="{% static 'js/weekactivity.js' %}"></script>
+</body>
+</html>
