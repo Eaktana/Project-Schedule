@@ -71,9 +71,9 @@ document.addEventListener('DOMContentLoaded', () => {
           <td>${r.id}</td>
           <td>${r.name}</td>
           <td>${r.type_name || ''}</td>
-          <td class="text-nowrap">
-            <button class="btn btn-sm btn-outline-primary me-1" data-act="edit" data-id="${r.id}">แก้ไข</button>
-            <button class="btn btn-sm btn-outline-danger" data-act="del" data-id="${r.id}">ลบ</button>
+          <td class="d-flex justify-content-center gap-2">
+            <button class="btn-warning-gradient" data-act="edit" data-id="${r.id}">แก้ไข</button>
+            <button class="btn-danger-gradient" data-act="del" data-id="${r.id}">ลบ</button>
           </td>`;
         $tbody.appendChild(tr);
       }

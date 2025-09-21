@@ -10,7 +10,7 @@ class CourseSchedule(models.Model):
     section_course = models.CharField(max_length=10)
     theory_slot_amount_course = models.IntegerField(default=0)
     lab_slot_amount_course = models.IntegerField(default=0)
-
+    
     def __str__(self):
         return f"{self.teacher_name_course} - {self.subject_name_course}"
 

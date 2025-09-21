@@ -39,22 +39,25 @@ document.addEventListener('DOMContentLoaded', () => {
     tableBodyId:'teacherTableBody',
     addBtnId:'btnAddTeacher',
     cancelBtnId:'btnCancelTeacherEdit',
-    refreshBtnId:'btnRefreshTeacher',
+    deleteAllBtnId:'btnDeleteAllTeacher',   // ✅ ใช้ปุ่มลบทั้งหมดแทน refresh
 
     remote: {
       async load(){
         const { items } = await apiGet('/api/teacher/list/');
-        return items; // [{id, name}, ...]
+        return items;
       },
       async create(values){
         const payload = {
-          id:   Number(values.id),                    // required ตามฟอร์ม
+          id:   Number(values.id),
           name: String(values.name || '').trim(),
         };
-        await apiPost('/api/teacher/add/', payload);  // upsert ตาม id
+        await apiPost('/api/teacher/add/', payload);
       },
       async remove(id){
         await apiDelete(`/api/teacher/delete/${id}/`);
+      },
+      async removeAll(){                         // ✅ เพิ่ม removeAll
+        await apiDelete('/api/teacher/delete-all/');
       }
     }
   });

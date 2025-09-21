@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
     tableBodyId:'timeslotTableBody',
     addBtnId:'btnAddTimeSlot',
     cancelBtnId:'btnCancelTimeSlotEdit',
-    refreshBtnId:'btnRefreshTimeSlot',
+    deleteAllBtnId:'btnDeleteAllTimeSlot',
 
     remote: {
       async load(){
@@ -59,6 +59,9 @@ document.addEventListener('DOMContentLoaded', () => {
       },
       async remove(id){
         await apiDelete(`/api/timeslot/delete/${id}/`);
+      },
+      async removeAll(){                       // ✅ เพิ่มลบทั้งหมด
+      await apiDelete('/api/timeslot/delete-all/');
       }
     }
   });

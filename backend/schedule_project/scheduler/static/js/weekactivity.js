@@ -558,3 +558,26 @@ window.addEventListener("load", () => {
     );
   }
 });
+
+// ===== ลบกิจกรรมทั้งหมด =====
+function deleteAllActivities() {
+  if (!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบกิจกรรมทั้งหมด?")) return;
+
+  fetch("/api/activity/delete-all/", {
+    method: "DELETE",
+    headers: { "X-CSRFToken": getCookie("csrftoken") },
+  })
+    .then((r) => r.json())
+    .then((data) => {
+      if (data.status === "success") {
+        showNotification("✅ ลบกิจกรรมทั้งหมดเรียบร้อยแล้ว", "success");
+        location.reload();
+      } else {
+        showNotification("เกิดข้อผิดพลาด: " + (data.message || ""), "error");
+      }
+    })
+    .catch(() =>
+      showNotification("เกิดข้อผิดพลาดในการลบกิจกรรมทั้งหมด", "error")
+    );
+}
+

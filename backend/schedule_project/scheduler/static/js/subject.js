@@ -79,19 +79,16 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const rowHTML = ({ id, code, name }) => `
-    <tr data-id="${id}" data-code="${escapeHtml(code)}" data-name="${escapeHtml(name)}">
-      <td class="fw-semibold">${escapeHtml(code)}</td>
-      <td>${escapeHtml(name)}</td>
-      <td class="text-nowrap">
-        <button type="button" class="btn btn-outline-primary btn-sm me-1 btn-edit">
-          <i class="bi bi-pencil-square me-1"></i>แก้ไข
-        </button>
-        <button type="button" class="btn btn-outline-danger btn-sm btn-delete">
-          <i class="bi bi-trash me-1"></i>ลบ
-        </button>
-      </td>
-    </tr>
+  <tr data-id="${id}" data-code="${escapeHtml(code)}" data-name="${escapeHtml(name)}">
+    <td class="fw-semibold text-center">${escapeHtml(code)}</td>
+    <td class="text-center">${escapeHtml(name)}</td>
+    <td class="d-flex justify-content-center gap-2">
+      <button type="button" class="btn-warning-gradient btn-edit">แก้ไข</button>
+      <button type="button" class="btn-danger-gradient btn-delete">ลบ</button>
+    </td>
+  </tr>
   `;
+
 
   const escapeHtml = (s) =>
     String(s ?? '')

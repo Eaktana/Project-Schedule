@@ -72,10 +72,11 @@ document.addEventListener('DOMContentLoaded', () => {
           <td>${row.id}</td>
           <td>${row.name}</td>
           <td>${row.type_name || ''}</td>
-          <td class="text-nowrap">
-            <button class="btn btn-sm btn-outline-primary me-1" data-act="edit" data-id="${row.id}">แก้ไข</button>
-            <button class="btn btn-sm btn-outline-danger" data-act="del" data-id="${row.id}">ลบ</button>
+          <td class="d-flex justify-content-center gap-2">
+            <button class="btn-warning-gradient" data-act="edit" data-id="${row.id}">แก้ไข</button>
+            <button class="btn-danger-gradient" data-act="del" data-id="${row.id}">ลบ</button>
           </td>
+
         `;
         $tbody.appendChild(tr);
       }

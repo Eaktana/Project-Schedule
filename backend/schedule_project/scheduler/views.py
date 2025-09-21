@@ -827,6 +827,25 @@ def upload_course_csv(request):
             json_dumps_params={"ensure_ascii": False},
         )
 
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def course_delete_all(request):
+    """API สำหรับลบรายวิชาทั้งหมด"""
+    try:
+        from .models import CourseSchedule
+        deleted_count, _ = CourseSchedule.objects.all().delete()
+        return JsonResponse({
+            "status": "success",
+            "message": f"ลบ Course ทั้งหมดสำเร็จ ({deleted_count} รายการ)",
+            "deleted_count": deleted_count
+        }, json_dumps_params={"ensure_ascii": False})
+    except Exception as e:
+        return JsonResponse({
+            "status": "error",
+            "message": f"เกิดข้อผิดพลาดในการลบทั้งหมด: {str(e)}"
+        }, status=500, json_dumps_params={"ensure_ascii": False})
+
+
 
 # ========== PRE-SCHEDULE APIs ==========
 
@@ -1437,6 +1456,23 @@ def upload_pre_csv(request):
 
 # ========== ACTIVITY APIs ==========
 
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def activity_delete_all(request):
+    """API สำหรับลบ WeekActivity ทั้งหมด"""
+    try:
+        deleted_count, _ = WeekActivity.objects.all().delete()
+        return JsonResponse({
+            "status": "success",
+            "message": f"ลบ Activity ทั้งหมดสำเร็จ ({deleted_count} รายการ)",
+            "deleted_count": deleted_count
+        }, json_dumps_params={"ensure_ascii": False})
+    except Exception as e:
+        return JsonResponse({
+            "status": "error",
+            "message": f"เกิดข้อผิดพลาดในการลบทั้งหมด: {str(e)}"
+        }, status=500, json_dumps_params={"ensure_ascii": False})
+
 
 @csrf_exempt
 def get_activity(request):
@@ -1709,6 +1745,7 @@ def upload_activity_csv(request):
             status=500,
             json_dumps_params={"ensure_ascii": False},
         )
+
 
 
 # ========== Time Parsing Utility ==========
@@ -1994,6 +2031,21 @@ def teacher_add(request):
         {"status": "success", "id": obj.id}, json_dumps_params={"ensure_ascii": False}
     )
 
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def teacher_delete_all(request):
+    try:
+        deleted_count, _ = Teacher.objects.all().delete()
+        return JsonResponse({
+            "status": "success",
+            "message": f"ลบ Teacher ทั้งหมดสำเร็จ ({deleted_count} รายการ)",
+            "deleted_count": deleted_count
+        }, json_dumps_params={"ensure_ascii": False})
+    except Exception as e:
+        return JsonResponse({
+            "status": "error",
+            "message": f"เกิดข้อผิดพลาดในการลบทั้งหมด: {str(e)}"
+        }, status=500, json_dumps_params={"ensure_ascii": False})
 
 @csrf_exempt
 @require_http_methods(["DELETE"])
@@ -2539,6 +2591,21 @@ def timeslot_add(request):
         {"status": "success", "id": obj.id}, json_dumps_params={"ensure_ascii": False}
     )
 
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def timeslot_delete_all(request):
+    try:
+        deleted_count, _ = TimeSlot.objects.all().delete()
+        return JsonResponse({
+            "status": "success",
+            "message": f"ลบ TimeSlot ทั้งหมดสำเร็จ ({deleted_count} รายการ)",
+            "deleted_count": deleted_count
+        }, json_dumps_params={"ensure_ascii": False})
+    except Exception as e:
+        return JsonResponse({
+            "status": "error",
+            "message": f"เกิดข้อผิดพลาดในการลบทั้งหมด: {str(e)}"
+        }, status=500, json_dumps_params={"ensure_ascii": False})
 
 @csrf_exempt
 @require_http_methods(["DELETE"])
@@ -2645,5 +2712,6 @@ def student_groups_lookup(request):
     return JsonResponse(
         {"status": "success", "items": items}, json_dumps_params={"ensure_ascii": False}
     )
+
 
 

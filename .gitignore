@@ -1,0 +1,27 @@
+# Python / Django
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.log
+.env
+.env.*
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Virtual env
+venv/
+.venv/
+
+# Node/Front-end (ถ้ามี)
+node_modules/
+dist/
+build/
+
+# IDE/OS
+.vscode/
+.idea/
+.DS_Store
+
+# Django collectstatic (ถ้าใช้)
+staticfiles/

@@ -23,7 +23,7 @@
         <div class="d-flex justify-content-end mt-3 gap-2">
           <button id="btnCancelGroupAllowEdit" type="button" class="btn btn-outline-secondary d-none">ยกเลิก</button>
           <button id="btnAddGroupAllow" type="button" class="btn btn-primary-gradient px-4">
-            <i class="bi bi-plus-lg me-2"></i><span>เพิ่มข้อมูล</span>
+            เพิ่มข้อมูล
           </button>
         </div>
       </div>
@@ -40,13 +40,35 @@
       <table class="table align-middle mb-0">
         <thead><tr><th>รหัสภาค</th><th>รหัสคาบ</th><th>จัดการ</th></tr></thead>
         <tbody id="groupAllowTableBody">
-          <tr class="empty-row"><td colspan="3" class="text-center text-muted">ไม่มีข้อมูลคาบที่เรียนได้</td></tr>
+          {% for ga in group_allows %}
+          <tr data-id="{{ ga.id }}">
+            <td>{{ ga.ga_dept_id }}</td>
+            <td>{{ ga.ga_slot_id  }}</td>
+            <td class="d-flex gap-2 justify-content-center">
+              <!-- ปุ่มแก้ไข -->
+              <button class="btn-warning-gradient" onclick="editSubject(this)" title="แก้ไข">
+                แก้ไข
+              </button>
+
+              <!-- ปุ่มลบ -->
+              <button class="btn-danger-gradient" onclick="deleteSubject(this)" title="ลบ">
+                ลบ
+              </button>
+            </td>
+          </tr>
+          {% empty %}
+          <tr class="empty-row">
+            <td colspan="3" class="text-center text-muted">
+              ไม่มีข้อมูลคาบที่เรียนได้
+            </td>
+          </tr>
+          {% endfor %}
         </tbody>
       </table>
     </div>
-    <div class="d-flex justify-content-end mt-3">
-      <button id="btnDeleteAllGroupAllow" class="btn btn-danger btn-lg px-4">
-        <i class="bi bi-trash3 me-2"></i>ลบทั้งหมด
+    <div class="d-flex justify-content-end mt-4">
+        <button id="btnDeleteAllTeacher" class="btn-danger-gradient">
+        <i class="bi bi-trash me-2"></i> ลบทั้งหมด
       </button>
     </div>
   </div>

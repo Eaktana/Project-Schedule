@@ -7,9 +7,13 @@ from .models import (
     WeekActivity,
     Room,
     GroupAllow,
+    StudentGroup,
     GeneratedSchedule,
 )
 import random
+from collections import defaultdict
+
+from tabulate import tabulate
 
 
 def _qs_to_df(qs, fields):
@@ -87,6 +91,41 @@ def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
             "slot__stop_time": "stop_time",
         }
     )
+
+    # ===== เติม group_type_id ให้ courses โดยไม่แก้สคีมา =====
+    sg_df = pd.DataFrame(list(StudentGroup.objects.values("name", "group_type_id")))
+
+    if sg_df.empty:
+        courses["group_type_id"] = pd.Series(dtype="Int64")
+    else:
+        sg_df["name_clean"] = (
+            sg_df["name"]
+            .fillna("")
+            .str.strip()
+        )
+
+        courses["sg_name_clean"] = (
+            courses["student_group_name_course"]
+            .fillna("")
+            .str.strip()
+        )
+        # pd.set_option("display.max_rows", None)   # แสดงทุกแถว
+        # pd.set_option("display.max_colwidth", None)  # ให้ข้อความยาวแค่ไหนก็แสดงครบ
+
+        # print(sg_df["name_clean"])
+        # print(courses["sg_name_clean"])
+        # exit()
+
+        courses = courses.merge(
+            sg_df[["name_clean", "group_type_id"]],
+            left_on="sg_name_clean",
+            right_on="name_clean",
+            how="left",
+        )
+        # .drop(columns=["name_clean", "sg_name_clean"])
+
+        courses["group_type_id"] = courses["group_type_id"].astype("Int64")
+    # ===== จบส่วนเติม group_type_id =====
 
     return {
         "courses": courses,
@@ -231,325 +270,176 @@ def apply_preschedule_blocking(
 
 # ==================== layer 2 end ==========================
 
-# ==================== optimal ga start ==========================
+# ==================== layer 3 start ========================
 
 
+def explode_courses_to_units(courses: pd.DataFrame) -> pd.DataFrame:
+    """
+    แตกแต่ละวิชาออกเป็นหน่วยชั่วโมงตาม
+    - theory_slot_amount_course  → สร้าง rows type="theory" จำนวน N แถว
+    - lab_slot_amount_course     → สร้าง rows type="lab"    จำนวน M แถว
 
-# ==================== optimal ga end ==========================
+    หน่วยละ 1 ชั่วโมง (hours=1)
+    """
+    if courses is None or courses.empty:
+        return pd.DataFrame(
+            columns=[
+                "id",
+                "teacher_name_course",
+                "subject_code_course",
+                "subject_name_course",
+                "student_group_name_course",
+                "room_type_course",
+                "section_course",
+                "type",  # "theory" / "lab"
+                "hours",  # always 1
+                "unit_idx",  # ลำดับชั่วโมงย่อย 1..N
+                "unit_total",  # จำนวนชั่วโมงรวมของ type นั้น
+            ]
+        )
 
-# ==================== layer 3 start ==========================
+    rows = []
+    for _, r in courses.iterrows():
+        theory_n = int(r.get("theory_slot_amount_course") or 0)
+        lab_n = int(r.get("lab_slot_amount_course") or 0)
+
+        base = {
+            "id": r.get("id"),
+            "teacher_name_course": r.get("teacher_name_course"),
+            "subject_code_course": r.get("subject_code_course"),
+            "subject_name_course": r.get("subject_name_course"),
+            "student_group_name_course": r.get("student_group_name_course"),
+            "room_type_course": r.get("room_type_course"),
+            "section_course": r.get("section_course"),
+        }
+
+        # สร้างหน่วยชั่วโมงสำหรับทฤษฎี
+        for i in range(theory_n):
+            rows.append(
+                {
+                    **base,
+                    "type": "theory",
+                    "hours": 1,
+                    "unit_idx": i + 1,
+                    "unit_total": theory_n,
+                }
+            )
+
+        # สร้างหน่วยชั่วโมงสำหรับแลบ
+        for i in range(lab_n):
+            rows.append(
+                {
+                    **base,
+                    "type": "lab",
+                    "hours": 1,
+                    "unit_idx": i + 1,
+                    "unit_total": lab_n,
+                }
+            )
+
+    return pd.DataFrame(rows)
+
+
+# ==================== layer 3 end ==========================
+
+# ==================== layer 4 start ==========================
+
 
 def initialize_population(
-    courses: pd.DataFrame, ga_free: pd.DataFrame, pop_size: int = 20
+    courses: pd.DataFrame,
+    ga_free: pd.DataFrame,
+    pop_size: int = 20,
+    seed: int = 42,
 ):
-    """สร้างประชากรเริ่มต้น (initial population)"""
-    population = []
-    free_slots = ga_free.to_dict(orient="records")
-    for _ in range(pop_size):
-        individual = []
-        for _, course in courses.iterrows():
-            # เลือก slot ที่ยังเหลือพอชั่วโมง
-            candidate = random.choice(free_slots)
-            gene = {
-                "subject_code": course["subject_code_course"],
-                "subject_name": course["subject_name_course"],
-                "teacher": course["teacher_name_course"],
-                "student_group": course["student_group_name_course"],
-                "section": course["section_course"],
-                "type": "theory" if course["theory_slot_amount_course"] > 0 else "lab",
-                "hours": course["theory_slot_amount_course"]
-                or course["lab_slot_amount_course"],
-                "day_of_week": candidate["day_of_week"],
-                "start_time": candidate["start_time"],
-                "stop_time": candidate["stop_time"],
-                "room": candidate["room_name"],
-            }
-            individual.append(gene)
-        population.append(individual)
+
     return population
 
-#======================================================================================================================
-#======================================================================================================================
-from collections import defaultdict
-from datetime import time
 
-# -----------------------------
-# Config น้ำหนักโทษ/ค่าปรับ
-# -----------------------------
-WEIGHTS = {
-    # Hard constraints (ต้องไม่ผิด)
-    "invalid_time": 200,            # start >= stop
-    "teacher_overlap": 800,         # อาจารย์ซ้อนเวลา
-    "group_overlap": 800,           # กลุ่มเรียนซ้อนเวลา
-    "room_overlap": 800,            # ห้องซ้อนเวลา
-    "out_of_group_allow": 400,      # อยู่นอกช่วงอนุญาต
-    "duration_mismatch": 250,       # (stop - start) ไม่ตรง hours
-    "slot_not_aligned": 120,        # ไม่ลงล็อก 60 นาที
+def evaluate_individual(individual):
 
-    # Soft constraints (เพื่อความเหมาะสม)
-    "teach_too_late": 40,           # คาบที่เลย 18:00
-    "teach_too_early": 30,          # คาบก่อน 09:00
-    "over_lunch": 25,               # ทับช่วงพักกลางวัน (12:00-13:00)
-    "daily_overload": 35,           # ชั่วโมง/วัน ของกลุ่ม > 6 ชม.
-    "many_subjects_a_day": 25,      # รายวิชาต่อวันของกลุ่ม > 3
-    "large_gaps": 15,               # ช่องว่างต่อวันของกลุ่ม > 120 นาที
-    "teacher_same_part_of_day": 8,  # ครูทั้งสัปดาห์อยู่แต่ช่วงเวลาเดียว
-    "room_building_hops": 10,       # เปลี่ยนตึกถ้าพักน้อย (<60 นาที)
-}
+    return
 
-TH_DAY = {"จันทร์":0, "อังคาร":1, "พุธ":2, "พฤหัสบดี":3, "ศุกร์":4, "เสาร์":5, "อาทิตย์":6}
-
-def t(h, m=0):
-    return time(hour=h, minute=m)
-
-def time_to_min(ti: time) -> int:
-    return ti.hour * 60 + ti.minute
-
-def minutes_between(a: time, b: time) -> int:
-    return time_to_min(b) - time_to_min(a)
-
-def overlap_minutes(s1: time, e1: time, s2: time, e2: time) -> int:
-    start = max(time_to_min(s1), time_to_min(s2))
-    end   = min(time_to_min(e1), time_to_min(e2))
-    return max(0, end - start)
-
-def is_outside_allow(day_name: str, s: time, e: time, group_kind: str) -> bool:
-    """
-    group_kind: 'ภาคปกติ' หรือ 'ภาคพิเศษ'
-    - ภาคปกติ: จันทร์–ศุกร์ 08:00–20:00
-    - ภาคพิเศษ: จันทร์–ศุกร์ 08:00–20:00 + เสาร์–อาทิตย์ 08:00–20:00
-    """
-    wd = TH_DAY.get(day_name, -1)
-    allow_days = set([0,1,2,3,4]) if group_kind == "ภาคปกติ" else set([0,1,2,3,4,5,6])
-    if wd not in allow_days:
-        return True
-    start_ok, stop_ok = t(8,0), t(20,0)
-    return not (s >= start_ok and e <= stop_ok)
-
-def building(room: str) -> str:
-    # แยกตึกจากชื่อเช่น "ทค1_201" -> "ทค1"
-    return room.split("_")[0] if room and "_" in room else room or ""
-
-def evaluate_individual(individual, group_kind_resolver=lambda g: "ภาคปกติ"):
-    """
-    individual: รายการ dict ของคาบเรียน แต่ละ g ควรมีคีย์อย่างน้อย:
-      ['teacher','student_group','room','day_of_week','start_time','stop_time','hours','type','subject_code','subject_name']
-    group_kind_resolver(g) -> 'ภาคปกติ' | 'ภาคพิเศษ' (ระบุจากกลุ่มเรียน/หลักสูตรของก้อนนั้น)
-    """
-    penalty = 0
-
-    # ---- 0) เตรียมกลุ่มตาม day/teacher/group/room ----
-    by_day = defaultdict(list)
-    for g in individual:
-        by_day[g["day_of_week"]].append(g)
-
-    # ---- 1) Hard: เวลาเริ่ม-สิ้นสุดถูกต้อง & duration/slot ----
-    for g in individual:
-        s, e = g["start_time"], g["stop_time"]
-        if s >= e:
-            penalty += WEIGHTS["invalid_time"]
-
-        dur = minutes_between(s, e)
-        # ให้ชั่วโมงเป็นจำนวนเต็ม (1 หรือ 2 ฯลฯ) และตรงกับ hours*60
-        if "hours" in g and isinstance(g["hours"], (int, float)):
-            if dur != int(round(g["hours"] * 60)):
-                penalty += WEIGHTS["duration_mismatch"]
-        # จับให้ลง slot 60 นาที (จะเข้มขึ้นกว่าของเดิม)
-        if dur % 60 != 0:
-            penalty += WEIGHTS["slot_not_aligned"]
-
-        # อยู่ในช่วง GroupAllow
-        group_kind = group_kind_resolver(g)
-        if is_outside_allow(g["day_of_week"], s, e, group_kind):
-            penalty += WEIGHTS["out_of_group_allow"]
-
-    # ---- 2) Hard: ซ้อนเวลาด้วย "ทับช่วง" จริง ----
-    # สแกนเป็นคู่ภายในวันเดียวกัน
-    for day, items in by_day.items():
-        n = len(items)
-        for i in range(n):
-            for j in range(i+1, n):
-                a, b = items[i], items[j]
-                ov = overlap_minutes(a["start_time"], a["stop_time"], b["start_time"], b["stop_time"])
-                if ov <= 0:
-                    continue
-                if a["teacher"] == b["teacher"]:
-                    penalty += WEIGHTS["teacher_overlap"] + ov // 10  # โทษเพิ่มตามนาทีทับ
-                if a["student_group"] == b["student_group"]:
-                    penalty += WEIGHTS["group_overlap"] + ov // 10
-                if a["room"] == b["room"]:
-                    penalty += WEIGHTS["room_overlap"] + ov // 10
-
-    # ---- 3) Soft: คุณภาพตารางเรียน ----
-    LUNCH_S, LUNCH_E = t(12,0), t(13,0)
-
-    # 3.1 ดึก/เช้าเกินไป & พักกลางวัน
-    for g in individual:
-        s, e = g["start_time"], g["stop_time"]
-        if s < t(9,0):
-            penalty += WEIGHTS["teach_too_early"]
-        if e > t(18,0):
-            penalty += WEIGHTS["teach_too_late"]
-        if overlap_minutes(s, e, LUNCH_S, LUNCH_E) > 0:
-            penalty += WEIGHTS["over_lunch"]
-
-    # 3.2 กลุ่มเรียน: ภาระ/ช่องว่าง/จำนวนวิชาต่อวัน
-    by_group_day = defaultdict(list)
-    for g in individual:
-        by_group_day[(g["student_group"], g["day_of_week"])].append(g)
-
-    for (grp, day), items in by_group_day.items():
-        # รวมชั่วโมง/วัน
-        total_min = sum(minutes_between(x["start_time"], x["stop_time"]) for x in items)
-        if total_min > 6*60:
-            penalty += WEIGHTS["daily_overload"] * ((total_min - 6*60)//60 + 1)
-
-        # จำนวนวิชา/วัน
-        if len(items) > 3:
-            penalty += WEIGHTS["many_subjects_a_day"] * (len(items)-3)
-
-        # ช่องว่างเกิน 120 นาที
-        items_sorted = sorted(items, key=lambda x: x["start_time"])
-        for i in range(len(items_sorted)-1):
-            gap = minutes_between(items_sorted[i]["stop_time"], items_sorted[i+1]["start_time"])
-            if gap > 120:
-                penalty += WEIGHTS["large_gaps"] * ((gap-120)//30 + 1)
-
-        # เปลี่ยนตึกถ้าพักน้อย (< 60 นาที)
-        for i in range(len(items_sorted)-1):
-            a, b = items_sorted[i], items_sorted[i+1]
-            gap = minutes_between(a["stop_time"], b["start_time"])
-            if gap < 60 and building(a["room"]) != building(b["room"]):
-                penalty += WEIGHTS["room_building_hops"]
-
-    # 3.3 อาจารย์: ไม่ให้คาบอยู่ช่วงเดียวทั้งสัปดาห์ (เช้าล้วน/เย็นล้วน)
-    by_teacher = defaultdict(list)
-    for g in individual:
-        by_teacher[g["teacher"]].append(g)
-    def part_of_day(s: time):
-        m = time_to_min(s)
-        # เช้า: < 12:00, บ่าย: 12–16, เย็น: > 16
-        return 0 if m < 12*60 else (1 if m <= 16*60 else 2)
-    for tname, items in by_teacher.items():
-        parts = {part_of_day(x["start_time"]) for x in items}
-        if len(parts) == 1 and len(items) >= 3:
-            # ถ้าสอน >=3 คาบ แต่กระจุกอยู่ช่วงเดียวทั้งหมด
-            penalty += WEIGHTS["teacher_same_part_of_day"] * (len(items)-2)
-
-    # fitness = ยิ่งโทษน้อย ยิ่งดี
-    return -penalty
-
-#======================================================================================================================
-#======================================================================================================================
-#======================================================================================================================
-
-
-
-
-# def evaluate_individual(individual):
-#     """คำนวณ fitness ของตาราง 1 ชุด (ยิ่ง conflict น้อย ยิ่งดี)"""
-#     penalty = 0
-
-#     # 1. เวลาเริ่ม–สิ้นสุดถูกต้อง
-#     for g in individual:
-#         if g["start_time"] >= g["stop_time"]:
-#             penalty += 10
-
-#     # 2. อาจารย์ห้ามซ้อน
-#     seen = {}
-#     for g in individual:
-#         key = (g["teacher"], g["day_of_week"], g["start_time"], g["stop_time"])
-#         if key in seen:
-#             penalty += 50
-#         seen[key] = True
-
-#     # 3. นักศึกษากลุ่มห้ามซ้อน
-#     seen = {}
-#     for g in individual:
-#         key = (g["student_group"], g["day_of_week"], g["start_time"], g["stop_time"])
-#         if key in seen:
-#             penalty += 50
-#         seen[key] = True
-
-#     # 4. ห้องห้ามซ้อน
-#     seen = {}
-#     for g in individual:
-#         key = (g["room"], g["day_of_week"], g["start_time"], g["stop_time"])
-#         if key in seen:
-#             penalty += 50
-#         seen[key] = True
-
-#     # TODO: soft constraints เช่น balance, กระจายภาระ
-#     return -penalty  # fitness = ยิ่งน้อยโทษ ยิ่งค่ามาก
 
 def run_genetic_algorithm(
     data: Dict[str, pd.DataFrame], generations: int = 100, pop_size: int = 50
 ):
-    """เริ่ม Genetic Algorithm เพื่อสร้างตาราง"""
-    courses = data["courses"]
-    ga_free = data["ga_free"]
-
-    # 1. สร้างประชากรเริ่มต้น
-    population = initialize_population(courses, ga_free, pop_size)
-
-    for gen in range(generations):
-        # 2. ประเมิน fitness
-        scored = [(evaluate_individual(ind), ind) for ind in population]
-        scored.sort(key=lambda x: x[0], reverse=True)
-
-        # 3. เลือก top 50%
-        survivors = [ind for _, ind in scored[: pop_size // 2]]
-
-        # 4. Crossover/Mutation (ตรงนี้ยังเขียนแบบ dummy)
-        children = []
-        while len(children) + len(survivors) < pop_size:
-            p1, p2 = random.sample(survivors, 2)
-            child = random.choice([p1, p2])  # จริง ๆ ควร crossover กัน
-            # Mutation: เปลี่ยน slot ของ gene แบบสุ่ม
-            gene = random.choice(child)
-            free_slot = ga_free.sample(1).to_dict(orient="records")[0]
-            gene["day_of_week"] = free_slot["day_of_week"]
-            gene["start_time"] = free_slot["start_time"]
-            gene["stop_time"] = free_slot["stop_time"]
-            gene["room"] = free_slot["room_name"]
-            children.append(child)
-
-        population = survivors + children
 
     # คืน individual ที่ดีที่สุด
     best_fitness, best_ind = max((evaluate_individual(ind), ind) for ind in population)
     return {"fitness": best_fitness, "schedule": best_ind}
 
-# ==================== layer 3 end ==========================
+
+# ==================== layer 4 end ==========================
 def save_ga_result(schedule_rows):
     objs = []
     for row in schedule_rows:
-        objs.append(GeneratedSchedule(
-            subject_code=row["subject_code"],
-            subject_name=row["subject_name"],
-            teacher=row.get("teacher"),
-            student_group=row.get("student_group"),
-            section=row.get("section"),
-            type=row.get("type"),
-            hours=row.get("hours", 0),
-            day_of_week=row["day_of_week"],
-            start_time=row["start_time"],
-            stop_time=row["stop_time"],
-            room=row.get("room"),
-        ))
+        objs.append(
+            GeneratedSchedule(
+                subject_code=row["subject_code"],
+                subject_name=row["subject_name"],
+                teacher=row.get("teacher"),
+                student_group=row.get("student_group"),
+                section=row.get("section"),
+                type=row.get("type"),
+                hours=row.get("hours", 0),
+                day_of_week=row["day_of_week"],
+                start_time=row["start_time"],
+                stop_time=row["stop_time"],
+                room=row.get("room"),
+            )
+        )
     GeneratedSchedule.objects.bulk_create(objs)
+
 
 def run_genetic_algorithm_from_db() -> Dict[str, Any]:
     """ดึงข้อมูลทั้งหมด + เตรียมข้อมูลสำหรับ Genetic Algorithm (ยังไม่รันจริง)"""
+    # ========= layer 1 ============
     data = fetch_all_from_db()
     data["groupallows"] = apply_groupallow_blocking(
         data["groupallows"], data["weekactivities"]
     )
-
+    print(tabulate(data["courses"], headers="keys", tablefmt="grid", showindex=False))
+    exit()
+    
+    # print("shape:", data["groupallows"].shape)
+    # print(data["groupallows"].head(150).to_string(index=False))
+    # exit()
+    # ========= layer 2 ============
     ga_with_rooms = expand_groupallows_with_rooms(data["groupallows"], data["rooms"])
     ga_free = apply_preschedule_blocking(ga_with_rooms, data["preschedules"])
-
     data["ga_free"] = ga_free
+    # print("=== ga_free ===")
+    # print("shape:", ga_free.shape)
+    # print(ga_free.head(100).to_string(index=False))
+    # exit()
+    # ========= layer 3 ============
+
+    data["courses"] = explode_courses_to_units(data["courses"])
+
+    # cols = [
+    #     "subject_code_course",
+    #     "subject_name_course",
+    #     "section_course",
+    #     "teacher_name_course",
+    #     "student_group_name_course",
+    #     "type",
+    #     "unit_idx",
+    #     "unit_total",
+    #     "hours",
+    #     "room_type_course",
+    # ]
+    # df = data["courses"].reindex(
+    #     columns=[c for c in cols if c in data["courses"].columns]
+    # )
+
+    # pd.set_option("display.max_columns", None)
+    # pd.set_option("display.max_rows", None)
+    # pd.set_option("display.width", 0)  # ป้องกันตัดบรรทัดตามกว้างหน้าจอ
+
+    # print(df.head(20).to_string(index=False))
+    # exit()
+
+    # ========= layer 4 ============
     result = run_genetic_algorithm(data, generations=100, pop_size=50)
     print("=== success ===")
     save_ga_result(result["schedule"])

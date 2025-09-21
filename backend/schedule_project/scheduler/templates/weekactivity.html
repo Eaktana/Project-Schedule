@@ -174,7 +174,25 @@
                     {% for activity in activity %}
                     <tr data-id="{{ activity.id }}">
                       <td>{{ activity.act_name_activity }}</td>
-                      <td><span class="badge bg-info">{{ activity.day_activity }}</span></td>
+                      <td>
+                        {% if activity.day_activity == "จันทร์" %}
+                          <span class="badge badge-mon">{{ activity.day_activity }}</span>
+                        {% elif activity.day_activity == "อังคาร" %}
+                          <span class="badge badge-tue">{{ activity.day_activity }}</span>
+                        {% elif activity.day_activity == "พุธ" %}
+                          <span class="badge badge-wed">{{ activity.day_activity }}</span>
+                        {% elif activity.day_activity == "พฤหัสบดี" %}
+                          <span class="badge badge-thu">{{ activity.day_activity }}</span>
+                        {% elif activity.day_activity == "ศุกร์" %}
+                          <span class="badge badge-fri">{{ activity.day_activity }}</span>
+                        {% elif activity.day_activity == "เสาร์" %}
+                          <span class="badge badge-sat">{{ activity.day_activity }}</span>
+                        {% elif activity.day_activity == "อาทิตย์" %}
+                          <span class="badge badge-sun">{{ activity.day_activity }}</span>
+                        {% else %}
+                          <span class="badge bg-light text-dark">{{ activity.day_activity }}</span>
+                        {% endif %}
+                      </td>
                       <td><span class="badge bg-primary">{{ activity.hours_activity }}</span></td>
                       <td><span class="badge bg-success">{{ activity.start_time_activity }}</span></td>
                       <td><span class="badge bg-warning">{{ activity.stop_time_activity }}</span></td>
@@ -196,9 +214,9 @@
                 </table>
               </div>
             </div>
-            <div class="d-flex justify-content-between mt-4">
-              <button class="btn btn-consistent btn-secondary-consistent" onclick="refreshData()">
-                <i class="bi bi-arrow-clockwise me-2"></i>รีเฟรช
+            <div class="d-flex justify-content-end mt-4">
+              <button class="btn btn-danger btn-lg px-4" onclick="deleteAllActivities()">
+                <i class="bi bi-trash3 me-2"></i>ลบทั้งหมด
               </button>
             </div>
           </div>

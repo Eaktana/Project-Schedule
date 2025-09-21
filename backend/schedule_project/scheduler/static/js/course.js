@@ -233,3 +233,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   showNotification("ยินดีต้อนรับสู่หน้าจัดการข้อมูลรายวิชา", 'info');
 });
+
+// ===== ลบทั้งหมด =====
+function deleteAllCourses(){
+  if(!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลรายวิชาทั้งหมด?")) return;
+
+  fetch('/api/course/delete-all/', {
+    method:'DELETE',
+    headers:{ 'X-CSRFToken': getCookie('csrftoken') }
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.status==='success'){
+      showNotification("✅ ลบข้อมูลรายวิชาทั้งหมดเรียบร้อยแล้ว",'success');
+      location.reload();
+    }else{
+      showNotification('เกิดข้อผิดพลาดในการลบทั้งหมด: '+(d.message||''),'error');
+    }
+  })
+  .catch(()=> showNotification('เกิดข้อผิดพลาดในการลบข้อมูลทั้งหมด','error'));
+}

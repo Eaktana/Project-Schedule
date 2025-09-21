@@ -151,3 +151,81 @@ body {
 }
 .table-rounded.table-purple table thead th:first-child { border-top-left-radius: 14px; }
 .table-rounded.table-purple table thead th:last-child  { border-top-right-radius: 14px; }
+
+/* ปุ่มแก้ไข - ส้ม Gradient */
+.btn-warning-gradient {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  color: #fff;
+  transition: all .2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 90px;    /* ✅ ความกว้างคงที่ */
+  height: 40px;   /* ✅ ความสูงคงที่ */
+  padding: 0;     /* ลบ padding เดิม */
+}
+.btn-warning-gradient:hover {
+  background: linear-gradient(135deg, #d97706, #b45309);
+  transform: translateY(-1px);
+  color: #fff;
+}
+
+/* ปุ่มลบ - แดง Gradient */
+.btn-danger-gradient {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  color: #fff;
+  transition: all .2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 70px;    /* ✅ แคบกว่าปุ่มแก้ไขเล็กน้อย */
+  height: 40px;   /* ✅ ความสูงคงที่ */
+  padding: 0;     /* ลบ padding เดิม */
+}
+.btn-danger-gradient:hover {
+  background: linear-gradient(135deg, #b91c1c, #991b1b);
+  transform: translateY(-1px);
+  color: #fff;
+}
+
+.table-rounded thead th {
+  text-align: center;
+}
+
+/* จัดให้ทุก cell ในหัว + เนื้อหาอยู่ตรงกลาง */
+.table-rounded thead th,
+.table-rounded tbody td {
+  text-align: center;
+}
+
+#btnDeleteAllTeacher,
+#btnDeleteAllSubject,
+#btnDeleteAllGroupAllow,
+#btnDeleteAllStudentGroup,
+#btnDeleteAllRoom,
+#btnDeleteAllGroupType {
+  display: inline-flex;       /* ใช้ flex */
+  align-items: center;        /* ไอคอน + ข้อความตรงกลางแนวตั้ง */
+  justify-content: center;
+  width: auto;                /* ✅ กว้างพอดีกับข้อความ */
+  height: auto;
+  padding: .5rem 1.25rem;
+  white-space: nowrap;        /* ป้องกันตัดบรรทัด */
+  font-weight: 600;
+  font-size: 15px;
+  border-radius: 10px;
+  gap: .5rem;                 /* ระยะห่างระหว่างไอคอนกับข้อความ */
+}
+
+
+
+
+
+
+

@@ -300,3 +300,11 @@ body {
   border-radius: 9999px;
   background: linear-gradient(135deg, #4f46e5, #7c3aed);
 }
+.badge-mon { background-color:#facc15; color:#000; }   /* จันทร์ เหลือง */
+.badge-tue { background-color:#ec4899; color:#fff; }   /* อังคาร ชมพู */
+.badge-wed { background-color:#22c55e; color:#fff; }   /* พุธ เขียว */
+.badge-thu { background-color:#f97316; color:#fff; }   /* พฤหัสบดี แสด */
+.badge-fri { background-color:#3b82f6; color:#fff; }   /* ศุกร์ ฟ้า */
+.badge-sat { background-color:#8b5cf6; color:#fff; }   /* เสาร์ ม่วง */
+.badge-sun { background-color:#ef4444; color:#fff; }   /* อาทิตย์ แดง */
+

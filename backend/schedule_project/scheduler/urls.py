@@ -33,6 +33,7 @@ urlpatterns = [
     path('api/course/update/<int:id>/', views.update_course, name='update_course'),
     path('api/course/delete/<int:id>/', views.delete_course, name='delete_course'),
     path('upload/course-csv/', views.upload_course_csv, name='upload_course_csv'),
+    path('api/course/delete-all/', views.course_delete_all, name='course_delete_all'),
     
     # Lookups for course.js
     path('api/teachers/', views.teachers_lookup, name='teachers_lookup'),
@@ -49,6 +50,8 @@ urlpatterns = [
     path('api/meta/days/', views.meta_days, name='meta_days'),
     path('api/meta/start-times/', views.meta_start_times, name='meta_start_times'),
     path('api/meta/stop-times/', views.meta_stop_times, name='meta_stop_times'),
+    path('api/activity/delete-all/', views.activity_delete_all, name='activity_delete_all'),
+
 
     #AddPIS
     path('subject/', views.subject, name='subject'),
@@ -98,12 +101,14 @@ urlpatterns = [
     path("api/subjects/", views.subject_delete_all, name="subject_delete_all"),
     
     # --- Teacher APIs ---
-    path('api/teacher/list/',   views.teacher_list,   name='teacher_list'),
-    path('api/teacher/add/',    views.teacher_add,    name='teacher_add'),
+    path('api/teacher/list/', views.teacher_list, name='teacher_list'),
+    path('api/teacher/add/', views.teacher_add, name='teacher_add'),
     path('api/teacher/delete/<int:pk>/', views.teacher_delete, name='teacher_delete'),
+    path('api/teacher/delete-all/', views.teacher_delete_all, name='teacher_delete_all'),  
     
     # --- TimeSlot APIs ---
     path('api/timeslot/list/',   views.timeslot_list,   name='timeslot_list'),
     path('api/timeslot/add/',    views.timeslot_add,    name='timeslot_add'),
     path('api/timeslot/delete/<int:pk>/', views.timeslot_delete, name='timeslot_delete'),
+    path('api/timeslot/delete-all/', views.timeslot_delete_all, name='timeslot_delete_all'),
 ]

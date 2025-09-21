@@ -282,14 +282,44 @@
                     {% for pre in pre_schedules %}
                     <tr data-id="{{ pre.id }}">
                       <td>{{ pre.teacher_name_pre }}</td>
-                      <td>{{ pre.subject_code_pre }}</td>
+                      <td>
+                        <span class="badge bg-primary">{{ pre.subject_code_pre }}</span>
+                      </td>
                       <td>{{ pre.subject_name_pre }}</td>
-                      <td>{{ pre.room_type_pre }}</td>
-                      <td>{{ pre.type_pre }}</td>
-                      <td>{{ pre.student_group_name_pre }}</td>
-                      <td>{{ pre.hours_pre }}</td>
-                      <td>{{ pre.section_pre }}</td>
-                      <td>{{ pre.day_pre }}</td>
+                      <td>
+                        <span class="badge bg-info">{{ pre.room_type_pre }}</span>
+                      </td>
+                      <td>
+                        <span class="badge bg-secondary">{{ pre.type_pre }}</span>
+                      </td>
+                      <td>
+                        <span class="badge bg-dark">{{ pre.student_group_name_pre }}</span>
+                      </td>
+                      <td>
+                        <span class="badge bg-success">{{ pre.hours_pre }}</span>
+                      </td>
+                      <td>
+                        <span class="badge bg-warning">{{ pre.section_pre }}</span>
+                      </td>
+                      <td>
+                        {% if pre.day_pre == "จันทร์" %}
+                          <span class="badge badge-mon">{{ pre.day_pre }}</span>
+                        {% elif pre.day_pre == "อังคาร" %}
+                          <span class="badge badge-tue">{{ pre.day_pre }}</span>
+                        {% elif pre.day_pre == "พุธ" %}
+                          <span class="badge badge-wed">{{ pre.day_pre }}</span>
+                        {% elif pre.day_pre == "พฤหัสบดี" %}
+                          <span class="badge badge-thu">{{ pre.day_pre }}</span>
+                        {% elif pre.day_pre == "ศุกร์" %}
+                          <span class="badge badge-fri">{{ pre.day_pre }}</span>
+                        {% elif pre.day_pre == "เสาร์" %}
+                          <span class="badge badge-sat">{{ pre.day_pre }}</span>
+                        {% elif pre.day_pre == "อาทิตย์" %}
+                          <span class="badge badge-sun">{{ pre.day_pre }}</span>
+                        {% else %}
+                          <span class="badge bg-light text-dark">{{ pre.day_pre }}</span>
+                        {% endif %}
+                      </td>
                       <td>{{ pre.start_time_pre|time:"H:i" }}</td>
                       <td>{{ pre.stop_time_pre|time:"H:i" }}</td>
                       <td>{{ pre.room_name_pre }}</td>
@@ -319,7 +349,7 @@
                 </table>
               </div>
             </div>
-            <div class="d-flex justify-content-end mb-3">
+            <div class="d-flex justify-content-end mb-3 pe-3">
               <button class="btn btn-danger" onclick="deleteAllPre()">
                 <i class="bi bi-trash3 me-2"></i>ลบทั้งหมด
               </button>

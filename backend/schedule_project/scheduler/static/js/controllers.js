@@ -13,7 +13,7 @@
       addBtnId,               // ปุ่ม เพิ่ม/บันทึก
       cancelBtnId,            // ปุ่ม ยกเลิกแก้ไข
       refreshBtnId,           // ปุ่ม รีเฟรช
-      deleteAllBtnId,         // 👈 ปุ่ม ลบทั้งหมด (ใหม่)
+      deleteAllBtnId,         // ปุ่ม ลบทั้งหมด
       remote                  // { load(), create(values), remove(id), removeAll()? }
     } = opts;
 
@@ -29,7 +29,7 @@
       addBtn: qs(addBtnId),
       cancelBtn: qs(cancelBtnId),
       refreshBtn: qs(refreshBtnId),
-      deleteAllBtn: qs(deleteAllBtnId)   // 👈 เพิ่ม element ปุ่มลบทั้งหมด
+      deleteAllBtn: qs(deleteAllBtnId)
     };
 
     // ---------- Utilities ----------
@@ -110,12 +110,13 @@
 
       // คอลัมน์จัดการ
       const act = document.createElement("td");
-      act.className = "text-end";
+      act.className = "d-flex justify-content-center align-items-center gap-2";
+
 
       const btnEdit = document.createElement("button");
       btnEdit.type = "button";
-      btnEdit.className = "btn btn-outline-secondary btn-sm me-2";
-      btnEdit.innerHTML = '<i class="bi bi-pencil"></i>';
+      btnEdit.className = "btn-warning-gradient";
+      btnEdit.textContent = "แก้ไข";
       btnEdit.addEventListener("click", () => {
         state.editIndex = index;
         setFormValues(row);
@@ -125,8 +126,8 @@
 
       const btnDel = document.createElement("button");
       btnDel.type = "button";
-      btnDel.className = "btn btn-outline-danger btn-sm";
-      btnDel.innerHTML = '<i class="bi bi-trash"></i>';
+      btnDel.className = "btn-danger-gradient";
+      btnDel.textContent = "ลบ";
       btnDel.addEventListener("click", async () => {
         if (!confirm("ต้องการลบรายการนี้หรือไม่?")) return;
         try {
@@ -208,7 +209,6 @@
     if (el.cancelBtn) el.cancelBtn.addEventListener("click", cancelEdit);
     if (el.refreshBtn) el.refreshBtn.addEventListener("click", reload);
 
-    // 👇 ปุ่มลบทั้งหมด (ใหม่)
     if (el.deleteAllBtn) el.deleteAllBtn.addEventListener("click", async () => {
       if (!remote.removeAll) {
         alert("ยังไม่ได้กำหนด remote.removeAll() ใน controller นี้");

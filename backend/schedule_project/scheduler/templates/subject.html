@@ -26,7 +26,7 @@
       <div class="col-12">
         <div class="d-flex justify-content-end mt-3 gap-2">
           <button id="btnCancelSubjectEdit" type="button" class="btn btn-outline-secondary d-none">ยกเลิก</button>
-          <button id="btnAddSubject" type="submit" class="btn btn-primary-gradient px-4">
+          <button id="btnAddSubject" type="submit" class="btn-primary-gradient px-4">
             <i class="bi bi-plus-lg me-2"></i><span>เพิ่มข้อมูล</span>
           </button>
         </div>
@@ -46,15 +46,39 @@
           <tr><th>รหัสวิชา</th><th>ชื่อรายวิชา</th><th>จัดการ</th></tr>
         </thead>
         <tbody id="subjectTableBody">
-          <tr class="empty-row"><td colspan="3" class="text-center text-muted">ไม่มีข้อมูลรายวิชา</td></tr>
-        </tbody>
+        {% for subject in subjects %}
+        <tr data-id="{{ subject.id }}">
+          <td>{{ subject.subject_code }}</td>
+          <td>{{ subject.subject_name }}</td>
+          <td class="d-flex gap-2 justify-content-center">
+            <td class="d-flex gap-2 justify-content-center">
+          <!-- ปุ่มแก้ไข -->
+          <button class="btn-warning-gradient" onclick="editSubject(this)" title="แก้ไข">
+            แก้ไข
+          </button>
+
+          <!-- ปุ่มลบ -->
+          <button class="btn-danger-gradient" onclick="deleteSubject(this)" title="ลบ">
+            ลบ
+          </button>
+        </td>
+        </tr>
+        {% empty %}
+        <tr class="empty-row">
+          <td colspan="3" class="text-center text-muted">
+            ไม่มีข้อมูลรายวิชา
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
       </table>
-  </div>
+    </div>
     <div class="d-flex justify-content-end mt-3">
-      <button id="btnDeleteAllSubject" class="btn btn-danger btn-lg px-4">
+      <button id="btnDeleteAllSubject" class="btn-danger-gradient btn-lg px-4">
         <i class="bi bi-trash3 me-2"></i>ลบทั้งหมด
       </button>
     </div>
+  </div>
 </div>
 {% endblock content %}
 
