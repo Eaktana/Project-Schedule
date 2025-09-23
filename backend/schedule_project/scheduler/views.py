@@ -14,6 +14,7 @@ from django.db import IntegrityError
 from django.conf import settings
 from django.db.models import Case, When, Value, IntegerField, Q
 from django.views.decorators.http import require_GET
+from django.db.models import Count
 
 from decimal import Decimal
 import math
@@ -323,6 +324,37 @@ def view_schedule_api(request):
         json_dumps_params={"ensure_ascii": False},
     )
 
+# ===== View from GeneratedSchedule (สำหรับหน้าเลือก) =====
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def view_generated_schedule_api(request):
+    from .models import GeneratedSchedule
+
+    qs = GeneratedSchedule.objects.all().order_by("day_of_week", "start_time", "id")
+
+    schedules = []
+    for g in qs:
+        schedules.append({
+            
+            "Course_Code": g.subject_code or "",
+            "Subject_Name": g.subject_name or "",
+            "Teacher": g.teacher or "",
+            "Room": g.room or "",
+            "Type": g.type or "",
+            "Student_Group": g.student_group or "",
+            "Day": g.day_of_week or "",
+            "StartTime": g.start_time.strftime("%H:%M") if g.start_time else "",
+            "StopTime": g.stop_time.strftime("%H:%M") if g.stop_time else "",
+            # เผื่อโค้ดเดิมยังอิง Hour
+            "Hour": int(g.start_time.strftime("%H")) if g.start_time else None,
+        })
+
+    return JsonResponse(
+        {"status": "success", "total_entries": len(schedules), "schedules": schedules},
+        json_dumps_params={"ensure_ascii": False},
+    )
 
 # ========== Clear Schedule API ==========
 
@@ -1995,37 +2027,90 @@ def teacher_list(request):
     )
 
 
+# ---------- Teacher: ADD ----------
 @csrf_exempt
 @require_http_methods(["POST"])
 def teacher_add(request):
-    data = json.loads(request.body or "{}")
-    raw_id = data.get("id")  # ผู้ใช้กรอกเอง (required ในฟอร์ม)
-    name = (data.get("name") or "").strip()
-
-    if raw_id is None or str(raw_id).strip() == "":
-        return JsonResponse(
-            {"status": "error", "message": "รหัสอาจารย์ (id) ห้ามว่าง"}, status=400
-        )
     try:
-        pk = int(raw_id)
-    except (TypeError, ValueError):
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
         return JsonResponse(
-            {"status": "error", "message": "รหัสอาจารย์ต้องเป็นตัวเลข"}, status=400
+            {"status": "error", "message": "รูปแบบข้อมูลไม่ถูกต้อง"},
+            status=400,
+            json_dumps_params={"ensure_ascii": False},
         )
 
+    name = (data.get("name") or "").strip()
     if not name:
         return JsonResponse(
-            {"status": "error", "message": "ชื่ออาจารย์ (name) ห้ามว่าง"}, status=400
+            {"status": "error", "message": "ชื่ออาจารย์ห้ามว่าง"},
+            status=400,
+            json_dumps_params={"ensure_ascii": False},
         )
 
-    # upsert ตาม id
-    obj, _created = Teacher.objects.update_or_create(
-        id=pk,
-        defaults={"name": name},
-    )
+    # กันชื่อซ้ำ (ไม่สนตัวพิมพ์เล็ก/ใหญ่)
+    if Teacher.objects.filter(name__iexact=name).exists():
+        return JsonResponse(
+            {"status": "error", "message": "มีชื่ออาจารย์นี้อยู่แล้ว"},
+            status=400,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    t = Teacher.objects.create(name=name)
     return JsonResponse(
-        {"status": "success", "id": obj.id}, json_dumps_params={"ensure_ascii": False}
+        {"status": "success", "id": t.id, "name": t.name},
+        json_dumps_params={"ensure_ascii": False},
     )
+
+
+# ---------- Teacher: UPDATE ----------
+@csrf_exempt
+@require_http_methods(["PUT"])
+def teacher_update(request, pk):
+    # หาเรคคอร์ด
+    try:
+        t = Teacher.objects.get(pk=pk)
+    except Teacher.DoesNotExist:
+        return JsonResponse(
+            {"status": "error", "message": "ไม่พบอาจารย์"},
+            status=404,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    # อ่าน JSON
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {"status": "error", "message": "รูปแบบข้อมูลไม่ถูกต้อง"},
+            status=400,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    name = (data.get("name") or "").strip()
+    if not name:
+        return JsonResponse(
+            {"status": "error", "message": "ชื่ออาจารย์ห้ามว่าง"},
+            status=400,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    # กันชื่อซ้ำ (ยกเว้นตัวเอง)
+    if Teacher.objects.exclude(pk=pk).filter(name__iexact=name).exists():
+        return JsonResponse(
+            {"status": "error", "message": "มีชื่ออาจารย์นี้อยู่แล้ว"},
+            status=400,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    # อัปเดต
+    t.name = name
+    t.save()
+    return JsonResponse(
+        {"status": "success", "id": t.id, "name": t.name},
+        json_dumps_params={"ensure_ascii": False},
+    )
+
 
 @csrf_exempt
 @require_http_methods(["DELETE"])
@@ -2709,5 +2794,26 @@ def student_groups_lookup(request):
         {"status": "success", "items": items}, json_dumps_params={"ensure_ascii": False}
     )
 
+@require_http_methods(["GET"])
+def list_generated_entities_api(request):
+    from .models import GeneratedSchedule
 
+    view = (request.GET.get("view") or "teacher").lower().strip()
+    field_map = {
+        "teacher": "teacher",
+        "room": "room",
+        "subject": "subject_name",
+        "group": "student_group",
+    }
+    field = field_map.get(view, "teacher")
 
+    q = (request.GET.get("q") or "").strip()
+    qs = GeneratedSchedule.objects.all()
+    if q:
+        qs = qs.filter(**{f"{field}__icontains": q})
+
+    rows = (qs.values(field).annotate(items=Count("id")).order_by(field))
+    results = [{"key": r[field] or "N/A", "display": r[field] or "N/A", "count": r["items"]} for r in rows]
+
+    return JsonResponse({"status": "success", "view": view, "results": results},
+                        json_dumps_params={"ensure_ascii": False})

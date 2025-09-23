@@ -16,6 +16,8 @@ urlpatterns = [
     path('api/schedule/clear/', views.clear_schedule_api, name='clear_schedule_api'),
     path('api/schedule/download/', views.download_schedule, name='download_schedule'),
     path('api/schedule/delete-selected/', views.delete_selected_schedules_api, name='delete_selected_schedules_api'),
+    path('api/schedule/view-generated/', views.view_generated_schedule_api, name='view_generated_schedule'),
+    path("api/schedule/list/", views.list_generated_entities_api, name="schedule_list"),
     
      # Pre-Schedule APIs
     path('api/pre/', views.get_pre, name='get_pre'),
@@ -24,7 +26,6 @@ urlpatterns = [
     path('api/pre/delete/<int:id>/', views.delete_pre, name='delete_pre'),
     path('upload/pre-csv/', views.upload_pre_csv, name='upload_pre_csv'),
     path("api/pre/delete-all/", views.pre_delete_all, name="pre_delete_all"),
-
 
     # Course APIs
     path('api/course/', views.get_courses, name='get_course'),
@@ -101,10 +102,11 @@ urlpatterns = [
     path("api/subjects/", views.subject_delete_all, name="subject_delete_all"),
     
     # --- Teacher APIs ---
-    path('api/teacher/list/', views.teacher_list, name='teacher_list'),
-    path('api/teacher/add/', views.teacher_add, name='teacher_add'),
-    path('api/teacher/delete/<int:pk>/', views.teacher_delete, name='teacher_delete'),
-    path('api/teacher/delete-all/', views.teacher_delete_all, name='teacher_delete_all'),  
+    path("api/teacher/list/", views.teacher_list, name="teacher_list"),
+    path("api/teacher/add/", views.teacher_add, name="teacher_add"),
+    path("api/teacher/update/<int:pk>/", views.teacher_update, name="teacher_update"),
+    path("api/teacher/delete-all/", views.teacher_delete_all, name="teacher_delete_all"),
+    path("api/teacher/delete/<int:pk>/", views.teacher_delete, name="teacher_delete"),
     
     # --- TimeSlot APIs ---
     path('api/timeslot/list/',   views.timeslot_list,   name='timeslot_list'),

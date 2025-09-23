@@ -110,3 +110,37 @@ body{ background:#eaedffff; font-family:'Segoe UI', Tahoma, Geneva, Verdana, san
   background:linear-gradient(135deg,rgba(13,148,136,.1),rgba(15,118,110,.05));
   border:1px solid rgba(13,148,136,.2); border-radius:12px;
 }
+
+/* ===== Schedule Modal cards (scoped to this modal) ===== */
+#scheduleModal .sb-grid{
+  display:grid !important;
+  grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+  gap:16px;
+}
+#scheduleModal .sb-card{
+  border:1px solid #e9ecef; border-radius:14px; background:#fff; padding:16px;
+  box-shadow:0 2px 8px rgba(0,0,0,.04);
+  transition:transform .12s ease, box-shadow .12s ease;
+  display:flex; flex-direction:column; justify-content:space-between;
+  min-height:160px;
+}
+#scheduleModal .sb-card:hover{ transform:translateY(-2px); box-shadow:0 6px 18px rgba(0,0,0,.08); }
+#scheduleModal .sb-head{ display:flex; align-items:center; min-height:56px; }
+#scheduleModal .sb-icon{
+  width:44px; height:44px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:#eef3ff; margin-right:12px;
+}
+#scheduleModal .sb-title{
+  font-weight:700; line-height:1.25; overflow:hidden;
+  display:-webkit-box; -webkit-box-orient:vertical;
+  -webkit-line-clamp:2; line-clamp:2;
+  min-height:calc(1.25em * 2);
+}
+#scheduleModal .sb-sub{ font-size:.9rem; color:#6c757d; }
+
+@media (max-width:576px){
+  #scheduleModal .sb-grid{
+    grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+  }
+}

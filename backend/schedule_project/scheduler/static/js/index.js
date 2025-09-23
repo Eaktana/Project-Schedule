@@ -197,7 +197,7 @@ function generateSchedule() {
     document.getElementById("tt-select-spinner").classList.remove("d-none");
 
     if (!SCHEDULES) {
-      fetch("/api/schedule/view/?order=day&dir=asc")
+      fetch("/api/schedule/view-generated/?order=day&dir=asc")
         .then((r) => r.json())
         .then((d) => {
           SCHEDULES = d && d.status === "success" ? d.schedules || [] : [];
@@ -230,30 +230,23 @@ function generateSchedule() {
     ].sort(new Intl.Collator("th").compare);
 
     const grid = document.getElementById("tt-items-grid");
-    grid.innerHTML = items
-      .map(
-        (name) => `
-      <div class="col">
-        <div class="card h-100 shadow-sm border-0 tt-item-card" data-name="${esc(
-          name
-        )}" role="button" tabindex="0">
-          <div class="card-body text-center">
-            <div class="mb-3">
-              ${
-                selectedCategory === "Teacher"
-                  ? '<i class="bi bi-person-circle fs-2 text-primary"></i>'
-                  : selectedCategory === "Room"
-                  ? '<i class="bi bi-geo-alt fs-2 text-success"></i>'
-                  : '<i class="bi bi-book fs-2 text-purple"></i>'
-              }
-            </div>
-            <h6 class="fw-semibold mb-1">${esc(name)}</h6>
-            <div class="text-muted small">คลิกเพื่อดูตารางสอน</div>
+    grid.innerHTML = items.map((name) => `
+      <div class="sb-card tt-item-card" data-name="${esc(name)}" role="button" tabindex="0">
+        <div class="sb-head">
+          <div class="sb-icon">
+            ${
+              selectedCategory === "Teacher"
+                ? '<i class="bi bi-person-circle fs-4"></i>'
+                : selectedCategory === "Room"
+                ? '<i class="bi bi-geo-alt fs-4"></i>'
+                : '<i class="bi bi-book fs-4"></i>'
+            }
           </div>
+          <div class="sb-title" title="${esc(name)}">${esc(name)}</div>
         </div>
-      </div>`
-      )
-      .join("");
+        <div class="sb-sub">คลิกเพื่อดูตารางสอน</div>
+      </div>
+    `).join("");
 
     document
       .getElementById("tt-select-empty")
@@ -494,3 +487,72 @@ function generateSchedule() {
     table.innerHTML = thead + tbody;
   }
 })();
+
+// เรียกโหลดรายการจาก GeneratedSchedule แล้วแสดงเป็นการ์ด
+async function loadScheduleSelect() {
+  const wrap = document.getElementById('tt-select-view');
+  const grid = document.getElementById('tt-items-grid');
+  const spin = document.getElementById('tt-select-spinner');
+  const empty = document.getElementById('tt-select-empty');
+  const categoryEl = document.getElementById('ttCategory'); // dropdown "อาจารย์/ห้อง/วิชา/กลุ่ม"
+  const selectedCategory = (categoryEl?.value || 'Teacher');
+
+  // โชว์ spinner
+  spin?.classList.remove('d-none');
+  empty?.classList.add('d-none');
+  grid.innerHTML = '';
+
+  try {
+
+    const res = await fetch(`/api/schedule/list/?view=${
+      selectedCategory.toLowerCase()
+    }`);
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    // เตรียม items ที่จะ map เป็นการ์ด
+    const items = (data.results || []).map(x => x.display).filter(Boolean);
+
+    // เรนเดอร์การ์ดแบบ sb-card
+    grid.innerHTML = items.map((name) => `
+      <div class="sb-card tt-item-card" data-name="${name}" role="button" tabindex="0">
+        <div class="sb-head">
+          <div class="sb-icon">${
+            selectedCategory === "Teacher" ? '<i class="bi bi-person-circle fs-4"></i>' :
+            selectedCategory === "Room"    ? '<i class="bi bi-geo-alt fs-4"></i>' :
+                                             '<i class="bi bi-book fs-4"></i>'
+          }</div>
+          <div class="sb-title" title="${name}">${name}</div>
+        </div>
+        <div class="sb-sub">คลิกเพื่อดูตารางสอน</div>
+      </div>
+    `).join('');
+
+    // ซ่อน/แสดงสถานะ
+    spin?.classList.add('d-none');
+    empty?.classList.toggle('d-none', items.length !== 0);
+
+  } catch (err) {
+    console.error(err);
+    spin?.classList.add('d-none');
+    empty?.classList.remove('d-none');
+    empty.textContent = 'โหลดข้อมูลไม่สำเร็จ';
+  }
+}
+
+// โหลดเมื่อโมดัลกำลังเปิด (ครั้งแรกเท่านั้น)
+let scheduleListLoaded = false;
+document.getElementById('ttScheduleModal')
+  ?.addEventListener('show.bs.modal', () => {
+    if (!scheduleListLoaded) {
+      scheduleListLoaded = true;
+      loadScheduleSelect();
+    }
+  });
+
+// หากมีการเปลี่ยน dropdown "เลือกประเภท" หรือช่องค้นหา แล้วอยากรีโหลดด้วย:
+document.getElementById('ttCategory')?.addEventListener('change', () => {
+  scheduleListLoaded = false;
+  loadScheduleSelect();
+});

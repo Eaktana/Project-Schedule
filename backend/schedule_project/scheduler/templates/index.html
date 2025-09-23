@@ -109,7 +109,11 @@
               <i class="bi bi-calendar-event" style="font-size: 2rem;"></i>
             </div>
             <h3 class="h5 fw-bold mb-4 text-dark">ดูตารางสอน</h3>
-            <button class="btn btn-view w-100" onclick="viewSchedule()">
+            <button
+              type="button"
+              class="btn btn-view w-100"
+              data-bs-toggle="modal"
+              data-bs-target="#ttScheduleModal">
               <i class="bi bi-calendar-check me-2"></i>กดเพื่อดูตารางสอน
             </button>
           </div>
@@ -230,7 +234,7 @@
   <!-- ========== /Processing Modal ========== -->
 
   <!-- ========== Schedule Viewer Modal (THEME) ========== -->
-  <div class="modal fade" id="scheduleModal" tabindex="-1" aria-hidden="true">
+  <div class="modal fade" id="ttScheduleModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
       <div class="modal-content border-0 rounded-4 shadow-lg">
         <!-- Header -->
@@ -246,7 +250,7 @@
           <!-- Controls -->
           <div class="row g-3 align-items-end mb-4">
             <div class="col-md-4">
-              <label class="form-label small text-muted">มุมมองตาม</label>
+              <label class="form-label small text-muted">เลือกรายการ</label>
               <select id="ttCategory" class="form-select rounded-3 border-0 shadow-sm">
                 <option value="Teacher">อาจารย์</option>
                 <option value="Room">ห้อง</option>
@@ -258,19 +262,11 @@
               <label class="form-label small text-muted">ค้นหา</label>
               <input id="ttSearch" type="text" class="form-control rounded-3 border-0 shadow-sm" placeholder="พิมพ์คำค้น...">
             </div>
-            <div class="col-md-3 d-flex gap-2">
-              <button id="ttViewGrid" type="button" class="btn btn-outline-primary flex-fill rounded-3 shadow-sm">
-                <i class="bi bi-grid-3x3-gap me-1"></i> กริด
-              </button>
-              <button id="ttViewTable" type="button" class="btn btn-outline-success flex-fill rounded-3 shadow-sm">
-                <i class="bi bi-table me-1"></i> ตาราง
-              </button>
-            </div>
           </div>
 
           <!-- Grid view -->
           <div id="tt-select-view">
-            <div id="tt-items-grid" class="row g-3"></div>
+            <div id="tt-items-grid" class="sb-grid"></div>  <!-- เปลี่ยนเป็นกริด -->
             <div id="tt-select-empty" class="text-center text-muted d-none py-5">ไม่มีข้อมูลตารางสอน</div>
             <div id="tt-select-spinner" class="text-center py-5">
               <div class="spinner-border text-warning" role="status"></div>
@@ -299,11 +295,6 @@
           </div>
         </div>
 
-        <!-- Footer -->
-        <div class="modal-footer bg-white rounded-bottom-4 justify-content-between">
-          <small class="text-muted">ดึงข้อมูลจาก /api/schedule/view/</small>
-          <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">ปิด</button>
-        </div>
       </div>
     </div>
   </div>
