@@ -78,6 +78,7 @@ def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
         GroupAllow.objects.select_related("group_type", "slot"),
         [
             "id",
+            "group_type__id",
             "group_type__name",
             "slot__day_of_week",
             "slot__start_time",
@@ -85,6 +86,7 @@ def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
         ],
     ).rename(
         columns={
+            "group_type__id": "group_id",
             "group_type__name": "group_type",
             "slot__day_of_week": "day_of_week",
             "slot__start_time": "start_time",
@@ -98,16 +100,10 @@ def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
     if sg_df.empty:
         courses["group_type_id"] = pd.Series(dtype="Int64")
     else:
-        sg_df["name_clean"] = (
-            sg_df["name"]
-            .fillna("")
-            .str.strip()
-        )
+        sg_df["name_clean"] = sg_df["name"].fillna("").str.strip()
 
         courses["sg_name_clean"] = (
-            courses["student_group_name_course"]
-            .fillna("")
-            .str.strip()
+            courses["student_group_name_course"].fillna("").str.strip()
         )
         # pd.set_option("display.max_rows", None)   # แสดงทุกแถว
         # pd.set_option("display.max_colwidth", None)  # ให้ข้อความยาวแค่ไหนก็แสดงครบ
@@ -193,6 +189,7 @@ def expand_groupallows_with_rooms(
         # คืน schema เปล่าให้แน่ใจว่าคอลัมน์ครบ
         return pd.DataFrame(
             columns=[
+                "group_id",
                 "group_type",
                 "day_of_week",
                 "start_time",
@@ -202,8 +199,10 @@ def expand_groupallows_with_rooms(
         )
 
     # เตรียม columns ที่ต้องใช้
-    ga = groupallows[["group_type", "day_of_week", "start_time", "stop_time"]].copy()
-    rm = rooms[["room_name"]].copy()
+    ga = groupallows[
+        ["group_id", "group_type", "day_of_week", "start_time", "stop_time"]
+    ].copy()
+    rm = rooms[["room_name", "room_type"]].copy()
 
     # cross join แบบง่าย: ใส่ key=1 แล้ว merge
     ga["__key"] = 1
@@ -211,7 +210,17 @@ def expand_groupallows_with_rooms(
     out = ga.merge(rm, on="__key").drop(columns="__key")
 
     # จัดลำดับคอลัมน์ให้อ่านง่าย
-    return out[["group_type", "day_of_week", "start_time", "stop_time", "room_name"]]
+    return out[
+        [
+            "group_id",
+            "group_type",
+            "day_of_week",
+            "start_time",
+            "stop_time",
+            "room_name",
+            "room_type",
+        ]
+    ]
 
 
 def expand_preschedules_to_slots(preschedules: pd.DataFrame) -> pd.DataFrame:
@@ -291,6 +300,7 @@ def explode_courses_to_units(courses: pd.DataFrame) -> pd.DataFrame:
                 "student_group_name_course",
                 "room_type_course",
                 "section_course",
+                "group_type_id",
                 "type",  # "theory" / "lab"
                 "hours",  # always 1
                 "unit_idx",  # ลำดับชั่วโมงย่อย 1..N
@@ -311,6 +321,7 @@ def explode_courses_to_units(courses: pd.DataFrame) -> pd.DataFrame:
             "student_group_name_course": r.get("student_group_name_course"),
             "room_type_course": r.get("room_type_course"),
             "section_course": r.get("section_course"),
+            "group_type_id": r.get("group_type_id"),
         }
 
         # สร้างหน่วยชั่วโมงสำหรับทฤษฎี
@@ -348,24 +359,556 @@ def explode_courses_to_units(courses: pd.DataFrame) -> pd.DataFrame:
 def initialize_population(
     courses: pd.DataFrame,
     ga_free: pd.DataFrame,
-    pop_size: int = 20,
-    seed: int = 42,
+    pop_size,
+    seed=42,
 ):
+    """
+    สร้างประชากรเริ่มต้น:
+    - ลูปตาม pop_size
+    - ในแต่ละ individual: copy courses/ga_free
+    - จัดเป็นก้อนวิชา (subject_code, section, group_type_id, type, room_type_course)
+    - หา slot ที่ group_id == group_type_id และ room_type == room_type_course
+    - ถ้าวางครบ → ติดตั้งเข้าตาราง / ลบออกจาก working set
+    """
+    count_runtime = 0
+    rng = random.Random(seed)
+
+    def has_conflict(current_rows, new_row):
+        t_key = (
+            new_row["teacher"],
+            new_row["day_of_week"],
+            new_row["start_time"],
+            new_row["stop_time"],
+        )
+        s_key = (
+            new_row["student_group"],
+            new_row["day_of_week"],
+            new_row["start_time"],
+            new_row["stop_time"],
+        )
+        r_key = (
+            new_row["room"],
+            new_row["day_of_week"],
+            new_row["start_time"],
+            new_row["stop_time"],
+        )
+        return (
+            (t_key in teacher_busy) or (s_key in student_busy) or (r_key in room_busy)
+        )
+
+    population = []
+    group_cols = [
+        "subject_code_course",
+        "subject_name_course",
+        "section_course",
+        "teacher_name_course",
+        "student_group_name_course",
+        "room_type_course",
+        "group_type_id",
+        "type",
+    ]
+
+    def _norm(x):
+        return str(x).strip().lower() if pd.notna(x) else ""
+
+    for _ in range(pop_size):
+        work_courses = courses.copy().reset_index(drop=True)
+        work_ga = ga_free.copy().reset_index(drop=True)
+        individual = []
+
+        teacher_busy, student_busy, room_busy = set(), set(), set()
+
+        if work_courses.empty:
+            population.append(individual)
+            continue
+
+        grouped = list(work_courses.groupby(group_cols, dropna=False))
+        rng.shuffle(grouped)
+
+        for gkey, df_units in grouped:
+            (
+                sub_code,
+                sub_name,
+                section,
+                teacher,
+                student_group,
+                room_type,
+                gtype_id,
+                ctype,
+            ) = gkey
+            hours_needed = len(df_units)
+
+            if pd.isna(gtype_id):
+                continue
+
+            # --- filter ตาม group_id ---
+            candidate = work_ga[work_ga["group_id"] == int(gtype_id)].copy()
+            if candidate.empty:
+                continue
+
+            # --- filter ตาม room_type ---
+            required_room_type = _norm(room_type)
+            if "room_type" not in candidate.columns:
+                continue
+            candidate = candidate[
+                candidate["room_type"].apply(_norm) == required_room_type
+            ]
+            if candidate.empty:
+                continue
+
+            candidate = candidate.sort_values(
+                ["day_of_week", "start_time", "room_name"]
+            ).reset_index(drop=True)
+
+            placed_rows, used_idx = [], []
+
+            for _, slot in candidate.iterrows():
+                if len(placed_rows) >= hours_needed:
+                    break
+                new_row = {
+                    "subject_code": sub_code,
+                    "subject_name": sub_name,
+                    "teacher": teacher,
+                    "student_group": student_group,
+                    "section": section,
+                    "type": ctype,
+                    "hours": 1,
+                    "day_of_week": slot["day_of_week"],
+                    "start_time": slot["start_time"],
+                    "stop_time": slot["stop_time"],
+                    "room": slot["room_name"],
+                    "group_type_id": gtype_id,
+                    "room_type_course": room_type,
+                    "unit_idx": int(df_units.iloc[0].get("unit_idx", 1)),
+                    "unit_total": int(df_units.iloc[0].get("unit_total", hours_needed)),
+                }
+                if has_conflict(individual, new_row):
+                    continue
+
+                placed_rows.append(new_row)
+                used_idx.append(slot.name)
+                teacher_busy.add(
+                    (
+                        teacher,
+                        new_row["day_of_week"],
+                        new_row["start_time"],
+                        new_row["stop_time"],
+                    )
+                )
+                student_busy.add(
+                    (
+                        student_group,
+                        new_row["day_of_week"],
+                        new_row["start_time"],
+                        new_row["stop_time"],
+                    )
+                )
+                room_busy.add(
+                    (
+                        new_row["room"],
+                        new_row["day_of_week"],
+                        new_row["start_time"],
+                        new_row["stop_time"],
+                    )
+                )
+
+            if len(placed_rows) == hours_needed:
+                individual.extend(placed_rows)
+                if used_idx:
+                    used_slots = candidate.loc[
+                        used_idx,
+                        ["day_of_week", "start_time", "stop_time", "room_name"],
+                    ]
+                    work_ga = work_ga.merge(
+                        used_slots.assign(_used=1),
+                        on=["day_of_week", "start_time", "stop_time", "room_name"],
+                        how="left",
+                    )
+                    work_ga = (
+                        work_ga[work_ga["_used"].isna()]
+                        .drop(columns=["_used"])
+                        .reset_index(drop=True)
+                    )
+
+                mask = pd.Series(True, index=work_courses.index)
+                for col, val in zip(group_cols, gkey):
+                    if pd.isna(val):
+                        mask &= work_courses[col].isna()
+                    else:
+                        mask &= work_courses[col] == val
+                work_courses = work_courses[~mask].reset_index(drop=True)
+            else:
+                for r in placed_rows:
+                    teacher_busy.discard(
+                        (
+                            r["teacher"],
+                            r["day_of_week"],
+                            r["start_time"],
+                            r["stop_time"],
+                        )
+                    )
+                    student_busy.discard(
+                        (
+                            r["student_group"],
+                            r["day_of_week"],
+                            r["start_time"],
+                            r["stop_time"],
+                        )
+                    )
+                    room_busy.discard(
+                        (r["room"], r["day_of_week"], r["start_time"], r["stop_time"])
+                    )
+                continue
+
+        population.append(individual)
+        count_runtime = count_runtime + 1
+        print(count_runtime)
 
     return population
 
 
-def evaluate_individual(individual):
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-    return
+
+def make_allow_set(ga_free: pd.DataFrame):
+    """
+    สร้างชุด key ที่อนุญาตให้ใช้ (group_id, day, start, stop, room)
+    ใช้ lookup เร็ว ๆ ใน fitness/mutation/repair
+    """
+    if ga_free is None or ga_free.empty:
+        return set()
+    return set(
+        (
+            int(r["group_id"]),
+            r["day_of_week"],
+            r["start_time"],
+            r["stop_time"],
+            r["room_name"],
+        )
+        for _, r in ga_free.iterrows()
+    )
+
+
+def is_conflict(existing_rows, g):
+    """ชนไหม? (ครู/นักศึกษา/ห้อง ซ้อนเวลาเดียวกัน)"""
+    t = (g["teacher"], g["day_of_week"], g["start_time"], g["stop_time"])
+    s = (g["student_group"], g["day_of_week"], g["start_time"], g["stop_time"])
+    r = (g["room"], g["day_of_week"], g["start_time"], g["stop_time"])
+    # สแกนแบบ set จะเร็วกว่า แต่ existing_rows เป็น list
+    for x in existing_rows:
+        if (x["teacher"], x["day_of_week"], x["start_time"], x["stop_time"]) == t:
+            return True
+        if (x["student_group"], x["day_of_week"], x["start_time"], x["stop_time"]) == s:
+            return True
+        if (x["room"], x["day_of_week"], x["start_time"], x["stop_time"]) == r:
+            return True
+    return False
+
+
+def find_slot_for_gene(
+    gene, ga_free: pd.DataFrame, allow_set, rng: random.Random, max_tries=100
+):
+    """
+    หา slot ที่ถูกต้องสำหรับ gene:
+      - group_allow: (group_type_id, day, start, stop, room) ต้องอยู่ใน allow_set
+      - ไม่ชนกับสิ่งที่มีอยู่ (ผู้เรียกต้องเช็คเองตอน append)
+    กลยุทธ์ง่าย ๆ: สุ่ม candidate จาก ga_free ตาม group_id แล้วลองทีละตัว
+    """
+    if pd.isna(gene.get("group_type_id", None)):
+        return None  # ไม่มีสิทธิ์กลุ่ม ก็หาให้ไม่ได้
+
+    cand = ga_free[ga_free["group_id"] == int(gene["group_type_id"])]
+    if cand.empty:
+        return None
+
+    idxs = list(cand.index)
+    rng.shuffle(idxs)
+
+    tries = 0
+    for i in idxs:
+        tries += 1
+        if tries > max_tries:
+            break
+        r = cand.loc[i]
+        key = (
+            int(gene["group_type_id"]),
+            r["day_of_week"],
+            r["start_time"],
+            r["stop_time"],
+            r["room_name"],
+        )
+        if key in allow_set:
+            # คืน dict ของช่องใหม่ (ผู้เรียกจะใส่ต่อใน gene)
+            return {
+                "day_of_week": r["day_of_week"],
+                "start_time": r["start_time"],
+                "stop_time": r["stop_time"],
+                "room": r["room_name"],
+            }
+    return None
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+def evaluate_individual(individual, allow_set, room_type_of=None):
+    """
+    คำนวณคะแนนแบบง่าย:
+    +0 เริ่มจาก 0
+    -50 ต่อ 1 เคสชน (ครู/นักศึกษา/ห้อง)
+    -100 ต่อ 1 เคสที่ละเมิด group_allow (ไม่อยู่ใน allow_set)
+    -10  ต่อ 1 เคส room_type ไม่ตรง (ถ้าส่ง room_type_of เข้ามา)
+    +1   ต่อ 1 คาบที่ valid (เป็นรางวัลเล็ก ๆ)
+
+    คืนค่าเป็น float (คะแนนรวม) — ยิ่งสูงยิ่งดี
+    """
+    penalty = 0
+    reward = 0
+
+    seen_t = set()
+    seen_s = set()
+    seen_r = set()
+    for g in individual:
+        # invalid time
+        if g["start_time"] >= g["stop_time"]:
+            penalty += 10
+
+        t = (g["teacher"], g["day_of_week"], g["start_time"], g["stop_time"])
+        s = (g["student_group"], g["day_of_week"], g["start_time"], g["stop_time"])
+        r = (g["room"], g["day_of_week"], g["start_time"], g["stop_time"])
+        if t in seen_t:
+            penalty += 50
+        if s in seen_s:
+            penalty += 50
+        if r in seen_r:
+            penalty += 50
+        seen_t.add(t)
+        seen_s.add(s)
+        seen_r.add(r)
+
+        # group_allow check
+        gtype = g.get("group_type_id", None)
+        key = (
+            int(gtype) if pd.notna(gtype) else None,
+            g["day_of_week"],
+            g["start_time"],
+            g["stop_time"],
+            g["room"],
+        )
+        if (gtype is None) or (key not in allow_set):
+            penalty += 100
+
+        # room_type check (optional)
+        if room_type_of is not None:
+            req = g.get("room_type_course", None)
+            actual = room_type_of.get(g["room"])
+            if req and actual and str(req).strip() and str(actual).strip():
+                if str(req).strip() != str(actual).strip():
+                    penalty += 10
+
+        # small reward for a valid placed hour
+        reward += 1
+
+        # print(f"Gen : best fitness = {reward - penalty}")
+        # print()
+
+    return reward - penalty
+
+
+def course_key(g):
+    return (
+        g["subject_code"],
+        g["section"],
+        g["teacher"],
+        g["student_group"],
+        g["type"],
+    )
+
+
+def crossover(parent1, parent2, allow_set, ga_free, rng: random.Random, room_type_of):
+    # ทำ bucket ของแต่ละพ่อแม่
+    b1 = defaultdict(list)
+    for g in parent1:
+        b1[course_key(g)].append(g)
+    b2 = defaultdict(list)
+    for g in parent2:
+        b2[course_key(g)].append(g)
+
+    keys = set(b1.keys()) | set(b2.keys())
+    child_raw = []
+    for k in keys:
+        pick_from_p1 = rng.random() < 0.5
+        src = b1 if pick_from_p1 else b2
+        if k in src:
+            # copy ลึกเพื่อกัน side-effect
+            child_raw.extend([dict(x) for x in src[k]])
+
+    # repair: ไล่ทีละ gene ถ้าชนหรือผิด allow → หา slotใหม่
+    child = []
+    for g in child_raw:
+        ok = True
+
+        # group_allow check
+        gtype = g.get("group_type_id", None)
+        key = (
+            int(gtype) if pd.notna(gtype) else None,
+            g["day_of_week"],
+            g["start_time"],
+            g["stop_time"],
+            g["room"],
+        )
+        if (
+            (gtype is None)
+            or (key not in allow_set)
+            or is_conflict(child, g)
+            or (
+                g.get("room_type_course")
+                and room_type_of.get(g["room"]) != g["room_type_course"]
+            )
+        ):
+            slot = find_slot_for_gene(g, ga_free, allow_set, rng)
+            if slot is None:
+                ok = False
+            else:
+                g = {**g, **slot}
+                if is_conflict(child, g):
+                    ok = False
+
+        if ok:
+            child.append(g)
+
+    return child
+
+
+def mutate(
+    individual, allow_set, ga_free, mut_rate: float, rng: random.Random, room_type_of
+):
+    if not individual:
+        return individual
+
+    out = [dict(g) for g in individual]  # copy
+
+    # MOVE
+    for i, g in enumerate(out):
+        if rng.random() < mut_rate:
+            slot = find_slot_for_gene(g, ga_free, allow_set, rng)
+            if slot:
+                newg = {**g, **slot}
+                if (
+                    g.get("room_type_course")
+                    and room_type_of.get(newg["room"]) != g["room_type_course"]
+                ):
+                    continue  # ข้าม mutation นี้ ถ้าห้องไม่ตรงประเภท
+
+                if not is_conflict([x for j, x in enumerate(out) if j != i], newg):
+                    out[i] = newg
+
+    # SWAP (เบา ๆ)
+    if len(out) >= 2 and rng.random() < mut_rate:
+        i, j = rng.sample(range(len(out)), 2)
+        gi, gj = dict(out[i]), dict(out[j])
+
+        # ลองสลับช่องกัน
+        gi_swapped = {
+            **gi,
+            "day_of_week": gj["day_of_week"],
+            "start_time": gj["start_time"],
+            "stop_time": gj["stop_time"],
+            "room": gj["room"],
+        }
+        gj_swapped = {
+            **gj,
+            "day_of_week": gi["day_of_week"],
+            "start_time": gi["start_time"],
+            "stop_time": gi["stop_time"],
+            "room": gi["room"],
+        }
+
+        # ตรวจ allow
+        def allow_ok(g):
+            gt = g.get("group_type_id", None)
+            k = (
+                int(gt) if pd.notna(gt) else None,
+                g["day_of_week"],
+                g["start_time"],
+                g["stop_time"],
+                g["room"],
+            )
+            return (gt is not None) and (k in allow_set)
+
+        if allow_ok(gi_swapped) and allow_ok(gj_swapped):
+            rest = [x for k, x in enumerate(out) if k not in (i, j)]
+            if (not is_conflict(rest, gi_swapped)) and (
+                not is_conflict(rest + [gi_swapped], gj_swapped)
+            ):
+                out[i] = gi_swapped
+                out[j] = gj_swapped
+
+    return out
 
 
 def run_genetic_algorithm(
-    data: Dict[str, pd.DataFrame], generations: int = 100, pop_size: int = 50
+    data: Dict[str, pd.DataFrame],
+    generations,
+    pop_size,
+    elite_size: int = 3,
+    cx_rate: float = 0.9,
+    mut_rate: float = 0.2,
+    seed: int = 42,
 ):
+    rng = random.Random(seed)
 
-    # คืน individual ที่ดีที่สุด
-    best_fitness, best_ind = max((evaluate_individual(ind), ind) for ind in population)
+    courses = data["courses"]
+    ga_free = data["ga_free"]
+
+    # 1) ประชากรเริ่มต้น
+    population = initialize_population(courses, ga_free, pop_size, seed=seed)
+
+    # 2) set สำหรับเช็ค allow และ mapping ชนิดห้อง (optional)
+    allow_set = make_allow_set(ga_free)
+    rooms_df = data.get("rooms", pd.DataFrame())
+    room_type_of = {}
+    if (
+        not rooms_df.empty
+        and "room_name" in rooms_df.columns
+        and "room_type" in rooms_df.columns
+    ):
+        room_type_of = dict(zip(rooms_df["room_name"], rooms_df["room_type"]))
+
+    def fitness(ind):
+        return evaluate_individual(ind, allow_set, room_type_of)
+
+    # ป้องกันกรณีไม่มีประชากร
+    if not population:
+        return {"fitness": float("-inf"), "schedule": []}
+
+    # 3) วน GA
+    for _ in range(generations):
+        scored = [(fitness(ind), ind) for ind in population]
+        scored.sort(key=lambda x: x[0], reverse=True)
+
+        print(f"Gen {_}: best fitness = {scored[0][0]}")
+
+        # เก็บตัวท็อปไว้ (elitism)
+        new_pop = [scored[i][1] for i in range(min(elite_size, len(scored)))]
+
+        # สร้างลูก
+        parent_pool = [ind for _, ind in scored[: max(10, pop_size)]]
+        while len(new_pop) < pop_size and parent_pool:
+            p1, p2 = rng.sample(parent_pool, 2)
+            if rng.random() < cx_rate:
+                child = crossover(p1, p2, allow_set, ga_free, rng, room_type_of)
+            else:
+                child = [dict(g) for g in (p1 if rng.random() < 0.5 else p2)]
+            child = mutate(child, allow_set, ga_free, mut_rate, rng, room_type_of)
+            new_pop.append(child)
+
+        population = new_pop
+
+    # 4) คืนผลดีที่สุด
+    best_fitness, best_ind = max(
+        ((fitness(ind), ind) for ind in population), key=lambda x: x[0]
+    )
     return {"fitness": best_fitness, "schedule": best_ind}
 
 
@@ -398,56 +941,30 @@ def run_genetic_algorithm_from_db() -> Dict[str, Any]:
     data["groupallows"] = apply_groupallow_blocking(
         data["groupallows"], data["weekactivities"]
     )
-    print(tabulate(data["courses"], headers="keys", tablefmt="grid", showindex=False))
-    exit()
-    
-    # print("shape:", data["groupallows"].shape)
-    # print(data["groupallows"].head(150).to_string(index=False))
+    # print(tabulate(data["groupallows"], headers="keys", tablefmt="grid", showindex=False))
     # exit()
+
     # ========= layer 2 ============
     ga_with_rooms = expand_groupallows_with_rooms(data["groupallows"], data["rooms"])
     ga_free = apply_preschedule_blocking(ga_with_rooms, data["preschedules"])
     data["ga_free"] = ga_free
-    # print("=== ga_free ===")
-    # print("shape:", ga_free.shape)
-    # print(ga_free.head(100).to_string(index=False))
+
+    # print(tabulate(data["ga_free"], headers="keys", tablefmt="grid", showindex=False))
     # exit()
+
     # ========= layer 3 ============
-
     data["courses"] = explode_courses_to_units(data["courses"])
-
-    # cols = [
-    #     "subject_code_course",
-    #     "subject_name_course",
-    #     "section_course",
-    #     "teacher_name_course",
-    #     "student_group_name_course",
-    #     "type",
-    #     "unit_idx",
-    #     "unit_total",
-    #     "hours",
-    #     "room_type_course",
-    # ]
-    # df = data["courses"].reindex(
-    #     columns=[c for c in cols if c in data["courses"].columns]
-    # )
-
-    # pd.set_option("display.max_columns", None)
-    # pd.set_option("display.max_rows", None)
-    # pd.set_option("display.width", 0)  # ป้องกันตัดบรรทัดตามกว้างหน้าจอ
-
-    # print(df.head(20).to_string(index=False))
-    # exit()
-
+    print("=== success ===")
     # ========= layer 4 ============
-    result = run_genetic_algorithm(data, generations=100, pop_size=50)
+    result = run_genetic_algorithm(data, generations=10, pop_size=10)
     print("=== success ===")
     save_ga_result(result["schedule"])
 
-    counts = {k: int(len(v)) for k, v in data.items()}
+    best_sched = result["schedule"]
     return {
         "status": "success",
         "message": "Genetic Algorithm finished",
         "best_fitness": result["fitness"],
-        "best_schedule": result["schedule"],  # ตารางที่ได้
+        "best_schedule": best_sched,
+        "total_entries": len(best_sched),
     }

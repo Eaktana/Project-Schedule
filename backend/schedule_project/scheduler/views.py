@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import re
-from datetime import datetime, time
+from datetime import datetime, date, time
 from io import StringIO
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -12,8 +12,15 @@ from django.views.decorators.http import require_http_methods
 from django.utils.dateparse import parse_time
 from django.db import IntegrityError
 from django.conf import settings
-
 from django.db.models import Case, When, Value, IntegerField, Q
+from django.views.decorators.http import require_GET
+
+from decimal import Decimal
+import math
+
+from .main import run_genetic_algorithm_from_db
+from .models import WeekActivity, PreSchedule, CourseSchedule, ScheduleInfo
+
 from .models import (
     GroupAllow,
     GroupType,
@@ -25,9 +32,7 @@ from .models import (
     Teacher,
     DAY_CHOICES,
 )
-from django.views.decorators.http import require_GET
 
-from .models import WeekActivity, PreSchedule, CourseSchedule, ScheduleInfo
 
 logger = logging.getLogger(__name__)
 
@@ -131,59 +136,50 @@ SLOT_TIME_MAPPING = {
 }
 
 # ========== Generate Schedule API ==========
+try:
+    import numpy as np
+except Exception:
+    class np:
+        integer = ()
+        floating = ()
+        bool_ = ()
 
+def _san(v):
+    # --- แก้ชนิดที่ JSON ไม่รู้จัก ---
+    if isinstance(v, (np.integer,)):           # np.int64, np.int32
+        return int(v)
+    if isinstance(v, (np.floating,)):          # np.float64
+        f = float(v)
+        return None if (math.isnan(f) or math.isinf(f)) else f
+    if isinstance(v, (np.bool_,)):             # np.bool_
+        return bool(v)
+
+    if isinstance(v, Decimal):
+        return float(v)
+
+    if isinstance(v, time):
+        return v.strftime("%H:%M:%S")
+    if isinstance(v, (datetime, date)):
+        return v.isoformat()
+
+    if isinstance(v, dict):
+        return {k: _san(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple, set)):
+        return [_san(x) for x in v]
+
+    return v
 
 @csrf_exempt
 @require_http_methods(["POST"])
 def generate_schedule_api(request):
-    """API สำหรับเรียกใช้ genetic algorithm โดยใช้ main function"""
     try:
-        from .main import run_genetic_algorithm_from_db
-
-        # เรียกใช้ genetic algorithm จาก main.py
         result = run_genetic_algorithm_from_db()
-
-        # ตรวจสอบผลลัพธ์
-        if result.get("status") == "success" and result.get("total_entries", 0) > 0:
-            try:
-                csv_result = create_schedule_csv_file()
-                if csv_result.get("status") == "success":
-                    result["csv_file"] = csv_result["file_path"]
-                    result["message"] += f" และสร้างไฟล์ CSV: {csv_result['file_path']}"
-                else:
-                    result["message"] += " (แต่ไม่สามารถสร้างไฟล์ CSV ได้)"
-            except Exception as csv_error:
-                logger.error(f"Error creating CSV file: {csv_error}")
-                result["message"] += " (แต่เกิดข้อผิดพลาดในการสร้างไฟล์ CSV)"
-            return JsonResponse(result, json_dumps_params={"ensure_ascii": False})
-        else:
-            return JsonResponse(
-                {
-                    "status": "error",
-                    "message": result.get("message", "ไม่สามารถสร้างตารางได้"),
-                    "total_entries": result.get("total_entries", 0),
-                },
-                status=400,
-                json_dumps_params={"ensure_ascii": False},
-            )
-
-    except ImportError as e:
-        logger.error(f"Import error: {e}")
-        return JsonResponse(
-            {
-                "status": "error",
-                "message": "ไม่สามารถโหลดโมดูล main ได้ กรุณาตรวจสอบไฟล์ main.py",
-            },
-            status=500,
-            json_dumps_params={"ensure_ascii": False},
-        )
+        # ทำความสะอาด payload ทั้งก้อน
+        payload = _san(result)
+        return JsonResponse(payload, json_dumps_params={"ensure_ascii": False})
     except Exception as e:
-        logger.error(f"Unexpected error in generate_schedule_api: {e}")
-        return JsonResponse(
-            {"status": "error", "message": f"เกิดข้อผิดพลาดในการสร้างตารางสอน: {str(e)}"},
-            status=500,
-            json_dumps_params={"ensure_ascii": False},
-        )
+        import traceback; traceback.print_exc()
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 
 def create_schedule_csv_file():

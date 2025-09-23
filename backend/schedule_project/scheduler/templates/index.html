@@ -9,7 +9,7 @@
   <!-- Bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
   <!-- App CSS -->
   <link rel="stylesheet" href="{% static 'css/bass.css' %}?v=2">
 </head>
@@ -108,7 +108,7 @@
             <div class="icon-circle icon-circle-green">
               <i class="bi bi-calendar-event" style="font-size: 2rem;"></i>
             </div>
-            <h3 class="h5 fw-bold mb-4 text-dark">กดเพื่อดูตารางสอน</h3>
+            <h3 class="h5 fw-bold mb-4 text-dark">ดูตารางสอน</h3>
             <button class="btn btn-view w-100" onclick="viewSchedule()">
               <i class="bi bi-calendar-check me-2"></i>กดเพื่อดูตารางสอน
             </button>
@@ -185,97 +185,140 @@
     </div>
   </main>
 
-  <!-- Schedule Modal -->
-  <div class="modal fade" id="scheduleModal" tabindex="-1" aria-labelledby="scheduleModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xxl modal-dialog-centered modal-dialog-scrollable" style="max-width:96vw;">
-      <div class="modal-content">
-        <div class="modal-header schedule-header">
-          <h5 class="modal-title" id="scheduleModalLabel">
-            <i class="bi bi-calendar3 me-2"></i>ตารางสอน
+  <!-- ========== Processing Modal (สร้างตารางสอน) THEME ========== -->
+  <div class="modal fade" id="processingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 rounded-4 shadow-lg">
+        <!-- Header -->
+        <div class="modal-header" style="background:#6d28d9; border-top-left-radius:1rem; border-top-right-radius:1rem;">
+          <h5 class="modal-title text-white fw-bold">
+            <i class="bi bi-bar-chart-line me-2"></i> สถานะการสร้างตารางสอน
           </h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="ปิด"></button>
         </div>
 
-        <div class="modal-body">
-          <!-- เลือกหมวด -->
-          <div id="tt-select-view" class="d-none">
-            <div class="row g-2 align-items-end mb-3">
-              <div class="col-12 col-md-4">
-                <label class="form-label mb-1">เลือกประเภทเพื่อดูตารางสอน</label>
-                <select id="ttCategory" class="form-select">
-                  <option value="Teacher">อาจารย์</option>
-                  <option value="Room">ห้อง</option>
-                  <option value="Student_Group">กลุ่มนักศึกษา</option>
-                </select>
-              </div>
-            </div>
-            <div id="tt-select-spinner" class="text-center py-5 d-none">
-              <div class="spinner-border text-primary" style="width:3rem; height:3rem;"></div>
-              <p class="mt-3 text-muted fs-6">กำลังโหลดข้อมูล...</p>
-            </div>
-            <div id="tt-items-grid" class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 g-3"></div>
-            <div id="tt-select-empty" class="empty-state d-none">
-              <i class="bi bi-exclamation-triangle"></i>
-              <h5 class="mt-3 mb-2">ไม่พบข้อมูล</h5>
-            </div>
+        <!-- Body -->
+        <div class="modal-body bg-light text-center">
+          <!-- กำลังประมวลผล -->
+          <div id="stateProcessing">
+            <div class="spinner-border text-primary mb-3" role="status"></div>
+            <p id="processingMessage" class="mb-0">กำลังประมวลผล...</p>
           </div>
 
-          <!-- ตาราง -->
-          <div id="tt-table-view" class="d-none">
-            <div class="mb-2">
-              <div class="d-flex flex-column flex-lg-row gap-2 align-items-stretch align-items-lg-center">
-                <button class="btn btn-outline-secondary" id="tt-back-btn">← กลับไปรายการ</button>
-                <div class="flex-grow-1 position-relative">
-                  <span class="position-absolute top-50 start-0 translate-middle-y ps-3 text-secondary">
-                    <i class="bi bi-search"></i>
-                  </span>
-                  <input id="tt-search" type="text" class="form-control ps-5" placeholder="ค้นหาวิชา, รหัส...">
-                </div>
-                <button class="btn btn-outline-primary" id="tt-toggle-view">
-                  <i class="bi bi-funnel me-1"></i><span id="tt-toggle-text">มุมมองรายการ</span>
-                </button>
-              </div>
-            </div>
-
-            <div id="tt-header" class="mb-3">
-              <h6 class="mb-1">
-                <i class="bi bi-calendar3 me-1"></i>
-                <span id="tt-title">ตารางสอน</span>
-              </h6>
-              <div class="text-muted" id="tt-desc"></div>
-            </div>
-
-            <div id="tt-infobar" class="alert alert-info d-none">
-              <i class="bi bi-info-circle me-1"></i>
-              <span id="tt-infobar-text">พบ 0 รายการ</span>
-            </div>
-
-            <!-- Grid -->
-            <div id="tt-grid-wrap">
-              <div class="table-responsive">
-                <table id="tt-table" class="table table-bordered align-middle"></table>
-              </div>
-              <div id="tt-grid-empty" class="empty-state d-none">
-                <i class="bi bi-exclamation-triangle"></i>
-                <h5 class="mt-3 mb-2">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</h5>
-              </div>
-            </div>
-
-            <!-- List -->
-            <div id="tt-list-wrap" class="d-none">
-              <div class="row g-3" id="tt-list-grid"></div>
-              <div id="tt-list-empty" class="empty-state d-none">
-                <i class="bi bi-exclamation-triangle"></i>
-                <h5 class="mt-3 mb-2">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</h5>
-              </div>
-            </div>
+          <!-- สำเร็จ -->
+          <div id="stateSuccess" class="d-none">
+            <i class="bi bi-check-circle-fill text-success fs-1 mb-3"></i>
+            <p class="mb-0">สร้างตารางสอนเสร็จแล้ว!</p>
           </div>
+
+          <!-- ผิดพลาด -->
+          <div id="stateError" class="d-none">
+            <i class="bi bi-x-circle-fill text-danger fs-1 mb-3"></i>
+            <p id="errorMessage" class="mb-0">เกิดข้อผิดพลาด</p>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="modal-footer justify-content-center bg-white rounded-bottom-4" id="processingFooter">
+          <!-- ปุ่มจะถูกเปลี่ยนสถานะโดย JS; เริ่มต้นมีปุ่มไว้ให้เลย -->
+          <button type="button" class="btn btn-primary" id="btnView">ดูตาราง</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ปิด</button>
         </div>
       </div>
     </div>
   </div>
+  <!-- ========== /Processing Modal ========== -->
+
+  <!-- ========== Schedule Viewer Modal (THEME) ========== -->
+  <div class="modal fade" id="scheduleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content border-0 rounded-4 shadow-lg">
+        <!-- Header -->
+        <div class="modal-header" style="background-color:#facc15; border-top-left-radius:1rem; border-top-right-radius:1rem;">
+          <h5 class="modal-title fw-bold text-dark">
+            <i class="bi bi-calendar-event me-2"></i> ตารางสอน
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="ปิด"></button>
+        </div>
+
+        <!-- Body -->
+        <div class="modal-body bg-light">
+          <!-- Controls -->
+          <div class="row g-3 align-items-end mb-4">
+            <div class="col-md-4">
+              <label class="form-label small text-muted">มุมมองตาม</label>
+              <select id="ttCategory" class="form-select rounded-3 border-0 shadow-sm">
+                <option value="Teacher">อาจารย์</option>
+                <option value="Room">ห้อง</option>
+                <option value="Subject">วิชา</option>
+                <option value="Student_Group">กลุ่มนักศึกษา</option>
+              </select>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label small text-muted">ค้นหา</label>
+              <input id="ttSearch" type="text" class="form-control rounded-3 border-0 shadow-sm" placeholder="พิมพ์คำค้น...">
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+              <button id="ttViewGrid" type="button" class="btn btn-outline-primary flex-fill rounded-3 shadow-sm">
+                <i class="bi bi-grid-3x3-gap me-1"></i> กริด
+              </button>
+              <button id="ttViewTable" type="button" class="btn btn-outline-success flex-fill rounded-3 shadow-sm">
+                <i class="bi bi-table me-1"></i> ตาราง
+              </button>
+            </div>
+          </div>
+
+          <!-- Grid view -->
+          <div id="tt-select-view">
+            <div id="tt-items-grid" class="row g-3"></div>
+            <div id="tt-select-empty" class="text-center text-muted d-none py-5">ไม่มีข้อมูลตารางสอน</div>
+            <div id="tt-select-spinner" class="text-center py-5">
+              <div class="spinner-border text-warning" role="status"></div>
+              <div class="mt-2">กำลังโหลด...</div>
+            </div>
+          </div>
+
+          <!-- Table view -->
+          <div id="tt-table-view" class="d-none">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0 bg-white rounded-3 shadow-sm">
+                <thead class="table-warning text-dark">
+                  <tr>
+                    <th>วัน</th>
+                    <th>เวลา</th>
+                    <th>วิชา</th>
+                    <th>อาจารย์</th>
+                    <th>ห้อง</th>
+                    <th>ประเภท</th>
+                    <th>กลุ่ม</th>
+                  </tr>
+                </thead>
+                <tbody id="tt-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="modal-footer bg-white rounded-bottom-4 justify-content-between">
+          <small class="text-muted">ดึงข้อมูลจาก /api/schedule/view/</small>
+          <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">ปิด</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- ========== /Schedule Viewer Modal ========== -->
+
 
   <!-- Bootstrap JS -->
+  <script>
+  // ให้ปุ่ม "ดูตาราง" รีเฟรชหน้า (เผื่อผู้ใช้กดก่อน JS สร้างปุ่มใหม่)
+  document.addEventListener("DOMContentLoaded", () => {
+    const btn = document.getElementById("btnView");
+    if (btn) btn.onclick = () => location.reload();
+  });
+  </script>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
   <script src="{% static 'js/index.js' %}?v=2"></script>
 </body>
