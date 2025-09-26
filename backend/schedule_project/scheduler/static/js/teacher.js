@@ -1,233 +1,236 @@
 // /static/js/teacher.js
 document.addEventListener("DOMContentLoaded", () => {
-  // ---- CSRF + fetch helpers ----
-  const csrftoken = (() => {
-    const m = document.cookie.match(/csrftoken=([^;]+)/);
-    return m ? decodeURIComponent(m[1]) : "";
-  })();
-
-  async function apiGet(url) {
-    const r = await fetch(url);
-    const j = await r.json();
-    if (!r.ok || j.status !== "success")
-      throw new Error(j.message || `HTTP ${r.status}`);
-    return j;
-  }
-  async function apiPost(url, payload) {
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-CSRFToken": csrftoken },
-      body: JSON.stringify(payload),
-    });
-    const j = await r.json();
-    if (!r.ok || j.status !== "success")
-      throw new Error(j.message || `HTTP ${r.status}`);
-    return j;
-  }
-  async function apiDelete(url) {
-    const r = await fetch(url, {
-      method: "DELETE",
-      headers: { "X-CSRFToken": csrftoken },
-    });
-    const j = await r.json();
-    if (!r.ok || j.status !== "success")
-      throw new Error(j.message || `HTTP ${r.status}`);
-    return j;
-  }
-
-  // --- Controller สำหรับ Teacher ---
-  window.teacherController = makeController({
-    key: "teacher",
-    formId: "teacherForm",
-    fields: [
-      // เอา teacher_id ออก ให้เหลือแค่ชื่ออาจารย์
-      { id: "teacher_name", key: "name", label: "ชื่ออาจารย์", required: true },
-    ],
-    tableBodyId: "teacherTableBody",
-    addBtnId: "btnAddTeacher",
-    cancelBtnId: "btnCancelTeacherEdit",
-    deleteAllBtnId: "btnDeleteAllTeacher",
-
-    remote: {
-      async load() {
-        // คาดว่า backend คืน items: [{id, name}, ...]
-        const { items } = await apiGet("/api/teacher/list/");
-        return items;
-      },
-      async create(values) {
-        // ส่งเฉพาะ name เท่านั้น
-        const payload = {
-          name: String(values.name || "").trim(),
-        };
-        await apiPost("/api/teacher/add/", payload);
-      },
-      async remove(id) {
-        // ลบตาม PK จริงของตาราง Teacher
-        await apiDelete(`/api/teacher/delete/${id}/`);
-      },
-      async removeAll() {
-        await apiDelete("/api/teacher/delete-all/");
-      },
-    },
-  });
-
-  // ---- Edit Modal ----
-  window.editTeacher = async function (btn) {
-    const ev = window.event;
-    if (ev) {
-      try {
-        ev.preventDefault();
-      } catch {}
-      try {
-        ev.stopPropagation();
-      } catch {}
-      if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-    }
-
-    // 1) พยายามอ่าน id จากปุ่มก่อน แล้วค่อยจาก <tr>
-    const idFromBtn = btn?.dataset?.id;
-    const tr = btn.closest("tr");
-    const idFromTr = tr ? tr.getAttribute("data-id") : null;
-    let id = idFromBtn || idFromTr;
-
-    // 2) อ่านชื่อจาก data-name หรือคอลัมน์แรก
-    let name =
-      btn?.dataset?.name ||
-      tr?.querySelector("td:first-child")?.textContent?.trim() ||
-      "";
-
-    // 3) Fallback: ถ้า id ยังไม่มี ให้ค้นจาก /api/teacher/list/ ด้วยชื่อ (กันกรณี makeController สร้างแถวโดยไม่มี data-id)
-    if (!id && name) {
-      try {
-        const { items } = await apiGet("/api/teacher/list/");
-        const found = items.find(
-          (x) => (x.name || "").trim().toLowerCase() === name.toLowerCase()
-        );
-        if (found) id = String(found.id);
-      } catch (e) {
-        console.warn("fallback lookup failed:", e);
-      }
-    }
-
-    if (!id) {
-      console.error("ไม่พบ id สำหรับการแก้ไข", {
-        idFromBtn,
-        idFromTr,
-        tr,
-        btn,
-        name,
-      });
-      alert("ไม่พบรหัสรายการที่จะใช้แก้ไข");
-      return;
-    }
-
-    document.getElementById("edit_teacher_id").value = id;
-    document.getElementById("edit_teacher_name").value = name;
-
-    new bootstrap.Modal(document.getElementById("editTeacherModal")).show();
+  const API = {
+    LIST:  "/api/teacher/list/",
+    ADD:   "/api/teacher/add/",
+    DEL:   (id) => `/api/teacher/delete/${id}/`,
+    DEL_ALL: "/api/teacher/delete-all/",
+    UPDATE: (id) => `/api/teacher/update/${id}/`,
   };
 
-  // ✅ ดักคลิกปุ่มแก้ไขก่อน makeController (capture)
+  // ===== Elements =====
+  const form = document.getElementById("teacherForm");
+  const nameInput = document.getElementById("teacher_name");
   const tbody = document.getElementById("teacherTableBody");
-  if (tbody) {
-    tbody.addEventListener(
-      "click",
-      (e) => {
-        const editBtn = e.target.closest(".btn-edit, .btn-warning-gradient");
-        if (editBtn) {
-          e.preventDefault();
-          e.stopPropagation();
-          if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-          editTeacher(editBtn);
-        }
-      },
-      true
-    );
+  const btnAdd = document.getElementById("btnAddTeacher");
+  const btnDeleteAll = document.getElementById("btnDeleteAllTeacher");
+
+  // edit modal
+  const editModalEl = document.getElementById("editTeacherModal");
+  const bsEdit = editModalEl ? new bootstrap.Modal(editModalEl) : null;
+  const editId = document.getElementById("edit_teacher_id");
+  const editName = document.getElementById("edit_teacher_name");
+  const btnSave = document.getElementById("btnSaveTeacher");
+
+  // confirm delete single
+  const delModalEl = document.getElementById("confirmDeleteTeacherModal");
+  const bsDel = delModalEl ? new bootstrap.Modal(delModalEl) : null;
+  const delTeacherName = document.getElementById("del_teacher_name");
+  const btnConfirmDelete = document.getElementById("btnConfirmDeleteTeacher");
+  let pendingDeleteId = null;
+
+  // confirm delete all
+  const delAllModalEl = document.getElementById("confirmDeleteAllTeacherModal");
+  const bsDelAll = delAllModalEl ? new bootstrap.Modal(delAllModalEl) : null;
+  const btnConfirmDeleteAll = document.getElementById("btnConfirmDeleteAllTeacher");
+
+  // toast
+  const toastHost = document.getElementById("toastHost");
+
+  // ===== Helpers =====
+  const getCSRF = () => {
+    const el = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    return el ? el.value : "";
+  };
+  const jsonHeaders = () => ({
+    "Content-Type": "application/json",
+    "X-CSRFToken": getCSRF(),
+    Accept: "application/json",
+  });
+  const ensureOk = async (res, fb) => {
+    if (res.ok) return;
+    let msg = fb;
+    try { const j = await res.json(); msg = j.message || j.detail || fb; } catch {}
+    throw new Error(msg || `HTTP ${res.status}`);
+  };
+  const escape = (s) =>
+    String(s ?? "")
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+
+  function showToast(kind, title, message) {
+    if (!toastHost) return alert(message || title || "");
+    const bg = { success:"bg-success text-white", warning:"bg-warning", danger:"bg-danger text-white", info:"bg-primary text-white" }[kind] || "bg-dark text-white";
+    const el = document.createElement("div");
+    el.className = "toast align-items-center border-0 shadow overflow-hidden";
+    el.style.borderRadius = "12px";
+    el.innerHTML = `
+      <div class="toast-header ${bg}">
+        <strong class="me-auto">${escape(title || "")}</strong>
+        <button type="button" class="btn-close btn-close-white ms-2 mb-1" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+      <div class="toast-body">${escape(message || "")}</div>`;
+    toastHost.appendChild(el);
+    new bootstrap.Toast(el, { delay: 3500, autohide: true }).show();
   }
 
-  // ====== Renderer แถวแบบมีไอคอน ======
-  const teacherTbody = document.getElementById("teacherTableBody");
+  // ===== API =====
+  const listTeachers = async () => {
+    const r = await fetch("/api/teacher/list/?order=-id", { headers: { Accept: "application/json" }});
+    if (!r.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
+    const j = await r.json();
+    const items = j.items || j.results || j || [];
+    // บังคับเรียงใหม่: ล่าสุดอยู่บน
+    items.sort((a, b) => Number(b.id) - Number(a.id));
+    return items;
+  };
+  const addTeacher = async ({ name }) => {
+    const r = await fetch(API.ADD, { method:"POST", headers: jsonHeaders(), body: JSON.stringify({ name }) });
+    await ensureOk(r, "เพิ่มข้อมูลไม่สำเร็จ");
+    return r.json();
+  };
+  const updateTeacher = async (id, { name }) => {
+    const r = await fetch(API.UPDATE(id), { method:"PUT", headers: jsonHeaders(), body: JSON.stringify({ name }) });
+    await ensureOk(r, "แก้ไขข้อมูลไม่สำเร็จ");
+    return r.json();
+  };
+  const deleteTeacher = async (id) => {
+    const r = await fetch(API.DEL(id), { method:"DELETE", headers: { "X-CSRFToken": getCSRF(), Accept:"application/json" }});
+    await ensureOk(r, "ลบข้อมูลไม่สำเร็จ");
+    return true;
+  };
+  const deleteAll = async () => {
+    const r = await fetch(API.DEL_ALL, { method:"DELETE", headers: { "X-CSRFToken": getCSRF(), Accept:"application/json" }});
+    await ensureOk(r, "ลบทั้งหมดไม่สำเร็จ");
+    return true;
+  };
 
-  const teacherRowHTML = ({ id, name }) => `
+  // ===== Render =====
+  const rowHTML = ({ id, name }) => `
     <tr data-id="${id}">
-      <td>${name}</td>
+      <td>${escape(name)}</td>
       <td class="d-flex justify-content-center gap-2">
-        <button type="button" class="btn-warning-gradient btn-edit"
-                data-id="${id}" data-name="${name}"
-                onclick="editTeacher(this)" title="แก้ไข">
-          <i class="bi bi-pencil-square me-1"></i><span>แก้ไข</span>
+        <button type="button" class="btn-warning-gradient btn-edit" data-id="${id}" data-name="${escape(name)}" title="แก้ไข">
+          <span>แก้ไข</span>
         </button>
-        <button type="button" class="btn-danger-gradient"
-                onclick="deleteTeacher(this)" title="ลบ">
-          <i class="bi bi-trash3 me-1"></i><span>ลบ</span>
+        <button type="button" class="btn-danger-gradient btn-delete" title="ลบ">
+          <span>ลบ</span>
         </button>
       </td>
-    </tr>
-  `;
-
-  function renderTeacherRows(items) {
-    if (!teacherTbody) return;
+    </tr>`;
+  const render = (items) => {
     if (!Array.isArray(items) || items.length === 0) {
-      teacherTbody.innerHTML = `
-      <tr class="empty-row">
-        <td colspan="2" class="text-center text-muted">ไม่มีข้อมูลอาจารย์ผู้สอน</td>
-      </tr>`;
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="2" class="text-center text-muted">ไม่มีข้อมูลอาจารย์ผู้สอน</td></tr>`;
       return;
     }
-    teacherTbody.innerHTML = items.map(teacherRowHTML).join("");
-  }
+    tbody.innerHTML = items.map(rowHTML).join("");
+  };
 
-  // ให้ reload() ของ controller ใช้ renderer นี้แทนของเดิม
-  if (window.teacherController) {
-    const _load = window.teacherController.remote.load;
-    window.teacherController.reload = async function () {
-      const items = await _load();
-      renderTeacherRows(items);
-    };
-    // เรียกครั้งแรกให้แสดงแถวที่มีไอคอน
-    window.teacherController.reload();
-  }
+  // ===== State & init =====
+  let cache = [];
+  const refresh = async () => { cache = await listTeachers(); render(cache); };
+  refresh();
 
-  // กด "บันทึก" ใน modal
-  document
-    .getElementById("btnSaveTeacher")
-    .addEventListener("click", async () => {
-      const id = document.getElementById("edit_teacher_id").value;
-      const name = document.getElementById("edit_teacher_name").value.trim();
+  // ===== Events =====
+  // เพิ่มข้อมูล (กันชื่อซ้ำ)
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = (nameInput.value || "").trim();
+    if (!name) return showToast("warning","ข้อมูลไม่ครบ","กรุณากรอกชื่ออาจารย์");
 
-      if (!id) {
-        alert("ไม่พบรหัสรายการ");
-        return;
-      }
-      if (!name) {
-        alert("กรุณากรอกชื่ออาจารย์");
-        return;
-      }
+    const dup = cache.find(x => (x.name || "").trim().toLowerCase() === name.toLowerCase());
+    if (dup) return showToast("warning","ชื่อซ้ำ","มีชื่ออาจารย์นี้อยู่แล้ว");
 
-      try {
-        const r = await fetch(`/api/teacher/update/${id}/`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": csrftoken,
-          },
-          body: JSON.stringify({ name }),
-        });
+    try {
+      btnAdd.disabled = true;
+      await addTeacher({ name });
+      form.reset();
+      showToast("success","เพิ่มสำเร็จ",`เพิ่มอาจารย์ ${name} แล้ว`);
+      await refresh();
+    } catch (err) {
+      showToast("danger","เพิ่มไม่สำเร็จ", err.message || "เกิดข้อผิดพลาด");
+    } finally {
+      btnAdd.disabled = false;
+    }
+  });
 
-        const j = await r.json();
-        if (!r.ok || j.status !== "success")
-          throw new Error(j.message || `HTTP ${r.status}`);
+  // แก้ไข/ลบ รายตัว
+  tbody?.addEventListener("click", (e) => {
+    const tr = e.target.closest("tr");
+    if (!tr) return;
+    const id = tr.dataset.id;
 
-        // 👉 refresh ตารางใหม่จาก server
-        if (window.teacherController) {
-          await window.teacherController.reload();
-        }
+    // edit
+    const editBtn = e.target.closest(".btn-edit");
+    if (editBtn && bsEdit) {
+      editId.value = id;
+      editName.value = editBtn.dataset.name || tr.children[0].textContent.trim();
+      bsEdit.show();
+      return;
+    }
 
-        bootstrap.Modal.getInstance(
-          document.getElementById("editTeacherModal")
-        ).hide();
-      } catch (err) {
-        alert(err.message || "เกิดข้อผิดพลาดในการบันทึก");
-      }
-    });
+    // delete (single) → modal
+    const delBtn = e.target.closest(".btn-delete");
+    if (delBtn && bsDel) {
+      pendingDeleteId = id;
+      delTeacherName.textContent = tr.children[0].textContent.trim();
+      bsDel.show();
+      return;
+    }
+  });
+
+  // บันทึกแก้ไข (กันชื่อซ้ำ)
+  btnSave?.addEventListener("click", async () => {
+    const id = editId.value;
+    const name = (editName.value || "").trim();
+    if (!name) return showToast("warning","ข้อมูลไม่ครบ","กรุณากรอกชื่ออาจารย์");
+
+    const dup = cache.find(x => String(x.id) !== String(id) && (x.name || "").trim().toLowerCase() === name.toLowerCase());
+    if (dup) return showToast("warning","ชื่อซ้ำ","มีชื่ออาจารย์นี้อยู่แล้ว");
+
+    try {
+      btnSave.disabled = true;
+      await updateTeacher(id, { name });
+      bsEdit?.hide();
+      showToast("success","แก้ไขสำเร็จ",`บันทึกอาจารย์ ${name} แล้ว`);
+      await refresh();
+    } catch (err) {
+      showToast("danger","แก้ไขไม่สำเร็จ", err.message || "เกิดข้อผิดพลาด");
+    } finally {
+      btnSave.disabled = false;
+    }
+  });
+
+  // ยืนยันลบรายตัว
+  btnConfirmDelete?.addEventListener("click", async () => {
+    if (!pendingDeleteId) return;
+    try {
+      btnConfirmDelete.disabled = true;
+      await deleteTeacher(pendingDeleteId);
+      bsDel?.hide();
+      showToast("success","ลบสำเร็จ","ลบอาจารย์เรียบร้อย");
+      pendingDeleteId = null;
+      await refresh();
+    } catch (err) {
+      showToast("danger","ลบไม่สำเร็จ", err.message || "เกิดข้อผิดพลาด");
+    } finally {
+      btnConfirmDelete.disabled = false;
+    }
+  });
+
+  // ลบทั้งหมด
+  btnDeleteAll?.addEventListener("click", () => bsDelAll?.show());
+  btnConfirmDeleteAll?.addEventListener("click", async () => {
+    try {
+      btnConfirmDeleteAll.disabled = true;
+      await deleteAll();
+      bsDelAll?.hide();
+      showToast("success","ลบทั้งหมดสำเร็จ","ลบข้อมูลอาจารย์ทั้งหมดแล้ว");
+      await refresh();
+    } catch (err) {
+      showToast("danger","ลบทั้งหมดไม่สำเร็จ", err.message || "เกิดข้อผิดพลาด");
+    } finally {
+      btnConfirmDeleteAll.disabled = false;
+    }
+  });
 });

@@ -174,20 +174,29 @@ body {
 }
 
 /* ปุ่มลบ - แดง Gradient */
-.btn-danger-gradient {
-  background: linear-gradient(135deg, #dc2626, #b91c1c);
+/* แทนที่ของเดิม */
+.btn-danger-gradient{
+  background: linear-gradient(135deg,#dc2626,#b91c1c);
   border: none;
-  border-radius: 10px;
-  font-weight: 600;
   color: #fff;
-  transition: all .2s;
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 70px;    /* ✅ แคบกว่าปุ่มแก้ไขเล็กน้อย */
-  height: 40px;   /* ✅ ความสูงคงที่ */
-  padding: 0;     /* ลบ padding เดิม */
+  gap: .5rem;
+
+  /* ใช้ padding/line-height แทนการ fix ขนาด */
+  padding: .5rem 1rem;
+  line-height: 1.25;
+
+  /* มุมโค้งให้ตรงกับหน้าอื่น */
+  border-radius: 12px;
+
+  /* อย่ากำหนด width/height คงที่ */
+  /* width: 70px;  height: 40px;  <-- ลบออก */
+  transition: all .25s;
 }
+
 .btn-danger-gradient:hover {
   background: linear-gradient(135deg, #b91c1c, #991b1b);
   transform: translateY(-1px);

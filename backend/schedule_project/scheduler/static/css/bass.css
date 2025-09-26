@@ -86,17 +86,39 @@ body{ background:#eaedffff; font-family:'Segoe UI', Tahoma, Geneva, Verdana, san
 
 #tt-table .tt-slot .small{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-#scheduleModal .modal-content{ min-height:65vh; }
-#scheduleModal .modal-body{ min-height:55vh; display:flex; flex-direction:column; }
-#tt-select-view{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; }
+#ttScheduleModal .modal-content{ height:80vh; display:flex; flex-direction:column; }
+#ttScheduleModal .modal-body{ min-height:0; display:flex; flex-direction:column; overflow:auto; }
+
+#tt-select-view{
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  --tt-card-h: 110px;
+  min-height: 0;
+  position: relative;   /* สำคัญ: ให้ spinner/empty วางทับได้ */
+}
 
 #tt-items-grid{
-  flex:1 1 auto; min-height:0; --tt-card-h:140px;
-  max-height:calc((var(--tt-card-h) + 1rem) * 3);
-  overflow-y:auto; padding-right:.25rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  padding-right: .25rem;
+  display: grid;
 }
+
 #tt-items-grid .card, #tt-items-grid .tt-item-card{ min-height:var(--tt-card-h); }
-#tt-select-empty{ flex:1 1 auto; display:flex; align-items:center; justify-content:center; }
+
+#tt-select-spinner,
+#tt-select-empty{
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  pointer-events: none;
+}
 
 #tt-grid-wrap .table-responsive{ max-height:60vh; }
 
@@ -112,35 +134,49 @@ body{ background:#eaedffff; font-family:'Segoe UI', Tahoma, Geneva, Verdana, san
 }
 
 /* ===== Schedule Modal cards (scoped to this modal) ===== */
-#scheduleModal .sb-grid{
-  display:grid !important;
-  grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
-  gap:16px;
+
+/* กริดคงที่ 4 คอลัมน์บนเดสก์ท็อป */
+#ttScheduleModal .sb-grid{
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr));  /* <-- เดิม auto-fill */
+  gap: 16px;
+  align-content: start;
 }
-#scheduleModal .sb-card{
+
+/* แท็บเล็ต */
+@media (max-width: 768px){
+  #ttScheduleModal .sb-grid{ grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
+}
+
+/* มือถือ */
+@media (max-width: 576px){
+  #ttScheduleModal .sb-grid{ grid-template-columns: 1fr !important; }
+}
+
+/* ให้โมดัลกว้างเท่าเดิมทั้งก่อน/หลังค้นหา */
+ #ttScheduleModal .modal-dialog.modal-xl{
+  --bs-modal-width: 1280px;
+  max-width: var(--bs-modal-width);
+}
+
+#ttScheduleModal .sb-card{
   border:1px solid #e9ecef; border-radius:14px; background:#fff; padding:16px;
   box-shadow:0 2px 8px rgba(0,0,0,.04);
   transition:transform .12s ease, box-shadow .12s ease;
   display:flex; flex-direction:column; justify-content:space-between;
   min-height:160px;
 }
-#scheduleModal .sb-card:hover{ transform:translateY(-2px); box-shadow:0 6px 18px rgba(0,0,0,.08); }
-#scheduleModal .sb-head{ display:flex; align-items:center; min-height:56px; }
-#scheduleModal .sb-icon{
+#ttScheduleModal .sb-card:hover{ transform:translateY(-2px); box-shadow:0 6px 18px rgba(0,0,0,.08); }
+#ttScheduleModal .sb-head{ display:flex; align-items:center; min-height:56px; }
+#ttScheduleModal .sb-icon{
   width:44px; height:44px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
   background:#eef3ff; margin-right:12px;
 }
-#scheduleModal .sb-title{
+#ttScheduleModal .sb-title{
   font-weight:700; line-height:1.25; overflow:hidden;
   display:-webkit-box; -webkit-box-orient:vertical;
   -webkit-line-clamp:2; line-clamp:2;
   min-height:calc(1.25em * 2);
 }
-#scheduleModal .sb-sub{ font-size:.9rem; color:#6c757d; }
-
-@media (max-width:576px){
-  #scheduleModal .sb-grid{
-    grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
-  }
-}
+#ttScheduleModal .sb-sub{ font-size:.9rem; color:#6c757d; }

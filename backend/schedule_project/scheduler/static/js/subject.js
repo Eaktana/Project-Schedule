@@ -1,58 +1,60 @@
-// subject.js — ทำงานคล้ายหน้า teacher: CRUD + Modal edit + refresh ทันที
+// /static/js/subject.js
 document.addEventListener("DOMContentLoaded", () => {
-  // ---------- Config ----------
-  // ใช้ REST เดิมของคุณ:
-  // GET/POST/DELETE (ทั้งหมด) : /api/subjects/
-  // GET/PUT/DELETE (รายตัว)     : /api/subjects/<id>/
   const API_BASE = "/api/subjects/";
 
-  // ---------- Elements ----------
+  // ---- Elements ----
   const form = document.getElementById("subjectForm");
   const codeInput = document.getElementById("subject_code");
   const nameInput = document.getElementById("subject_name");
   const tbody = document.getElementById("subjectTableBody");
-  const btnCancel = document.getElementById("btnCancelSubjectEdit");
   const btnSubmit = document.getElementById("btnAddSubject");
   const btnDeleteAll = document.getElementById("btnDeleteAllSubject");
 
-  // Modal elements
+  // Edit modal
   const modalEl = document.getElementById("editSubjectModal");
+  const bsEdit = modalEl ? new bootstrap.Modal(modalEl) : null;
   const modalId = document.getElementById("edit_subject_id");
   const modalCode = document.getElementById("edit_subject_code");
   const modalName = document.getElementById("edit_subject_name");
+  const btnSave = document.getElementById("btnSaveSubject");
 
-  let editingId = null;
+  // Confirm delete (single) modal  ⬅️ ใหม่ (แทน confirm())
+  const delModalEl = document.getElementById("confirmDeleteModal");
+  const bsDel = delModalEl ? new bootstrap.Modal(delModalEl) : null;
+  const delItemCode = document.getElementById("del_item_code");
+  const delItemName = document.getElementById("del_item_name");
+  const btnConfirmDelete = document.getElementById("btnConfirmDelete");
+  let pendingDeleteId = null;
 
-  // ---------- Helpers ----------
-  const getCSRFToken = () => {
+  // Confirm delete-all modal
+  const delAllModalEl = document.getElementById("confirmDeleteAllModal");
+  const bsDelAll = delAllModalEl ? new bootstrap.Modal(delAllModalEl) : null;
+  const btnConfirmDeleteAll = document.getElementById("btnConfirmDeleteAll");
+
+  // Toast host
+  const toastHost = document.getElementById("toastHost");
+
+  // ---- Helpers ----
+  const getCSRF = () => {
     const el = form?.querySelector('input[name="csrfmiddlewaretoken"]');
     return el ? el.value : "";
   };
-
   const jsonHeaders = () => ({
     "Content-Type": "application/json",
-    "X-CSRFToken": getCSRFToken(),
+    "X-CSRFToken": getCSRF(),
     Accept: "application/json",
   });
-
-  const setLoading = (isLoading) => {
-    if (!btnSubmit) return;
-    btnSubmit.disabled = isLoading;
-    btnSubmit.querySelector("span")?.classList?.toggle("d-none", isLoading);
-    let spinner = btnSubmit.querySelector(".spinner-border");
-    if (isLoading) {
-      if (!spinner) {
-        spinner = document.createElement("span");
-        spinner.className = "spinner-border spinner-border-sm ms-2";
-        spinner.setAttribute("role", "status");
-        spinner.setAttribute("aria-hidden", "true");
-        btnSubmit.appendChild(spinner);
-      }
-    } else if (spinner) {
-      spinner.remove();
-    }
+  const parseJSONSafe = async (res) => {
+    const ct = res.headers.get("content-type") || "";
+    if (ct.includes("application/json")) return res.json();
+    const text = await res.text();
+    return { status: "error", message: text || `HTTP ${res.status}` };
   };
-
+  const ensureOk = async (res, fb) => {
+    if (res.ok) return;
+    const data = await parseJSONSafe(res);
+    throw new Error(data?.message || data?.detail || fb || `HTTP ${res.status}`);
+  };
   const escapeHtml = (s) =>
     String(s ?? "")
       .replace(/&/g, "&amp;")
@@ -61,33 +63,57 @@ document.addEventListener("DOMContentLoaded", () => {
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
 
-  const parseJSONSafe = async (res) => {
-    const ct = res.headers.get("content-type") || "";
-    if (ct.includes("application/json")) return res.json();
-    const text = await res.text();
-    return { status: "error", message: text || `HTTP ${res.status}` };
+  const setLoading = (btn, loading) => {
+    if (!btn) return;
+    btn.disabled = loading;
+    const span = btn.querySelector("span");
+    if (span) span.classList.toggle("d-none", loading);
+    let spinner = btn.querySelector(".spinner-border");
+    if (loading && !spinner) {
+      spinner = document.createElement("span");
+      spinner.className = "spinner-border spinner-border-sm ms-2";
+      spinner.setAttribute("role", "status");
+      spinner.setAttribute("aria-hidden", "true");
+      btn.appendChild(spinner);
+    }
+    if (!loading && spinner) spinner.remove();
   };
 
-  const handleAPIError = async (res, fallback) => {
-    const data = await parseJSONSafe(res);
-    const msg =
-      data?.message ||
-      data?.detail ||
-      data?.error ||
-      fallback ||
-      `HTTP ${res.status}`;
-    throw new Error(msg);
-  };
+  // Toast (success | warning | danger | info)
+  function showToast(kind, title, message) {
+    if (!toastHost) return alert(message || title || "");
+    const bgMap = {
+      success: "bg-success text-white",
+      warning: "bg-warning",
+      danger: "bg-danger text-white",
+      info: "bg-primary text-white",
+    };
+    const headerClass = bgMap[kind] || "bg-dark text-white";
+    const id = `t${Date.now()}`;
+    const el = document.createElement("div");
+    el.className = "toast align-items-center border-0 shadow overflow-hidden";
+    el.style.borderRadius = "12px";
+    el.id = id;
+    el.setAttribute("role", "alert");
+    el.setAttribute("aria-live", "assertive");
+    el.setAttribute("aria-atomic", "true");
+    el.innerHTML = `
+      <div class="toast-header ${headerClass}">
+        <strong class="me-auto">${escapeHtml(title || "")}</strong>
+        <button type="button" class="btn-close btn-close-white ms-2 mb-1" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+      <div class="toast-body">${escapeHtml(message || "")}</div>`;
+    toastHost.appendChild(el);
+    const t = new bootstrap.Toast(el, { delay: 3500, autohide: true });
+    t.show();
+  }
 
-  // ---------- CRUD ----------
+  // ---- API ----
   const listSubjects = async () => {
-    const res = await fetch(API_BASE, {
-      headers: { Accept: "application/json" },
-    });
-    if (!res.ok) await handleAPIError(res, "โหลดข้อมูลไม่สำเร็จ");
-    // สมมติ API collection คืน array ของวิชา: [{id, code, name}, ...]
-    // ถ้าใช้ DRF viewset/serializer อาจเป็น {results: [...]} ให้ปรับตรงนี้
-    return res.json();
+    const res = await fetch(`/api/subjects/?order=-id`, { headers: { Accept: "application/json" } });
+    await ensureOk(res, "โหลดข้อมูลไม่สำเร็จ");
+    const data = await res.json();
+    return Array.isArray(data) ? data : data.results || [];
   };
 
   const createSubject = async ({ code, name }) => {
@@ -96,7 +122,7 @@ document.addEventListener("DOMContentLoaded", () => {
       headers: jsonHeaders(),
       body: JSON.stringify({ code, name }),
     });
-    if (!res.ok) await handleAPIError(res, "เพิ่มข้อมูลไม่สำเร็จ");
+    await ensureOk(res, "เพิ่มข้อมูลไม่สำเร็จ");
     return res.json();
   };
 
@@ -106,31 +132,29 @@ document.addEventListener("DOMContentLoaded", () => {
       headers: jsonHeaders(),
       body: JSON.stringify({ code, name }),
     });
-    if (!res.ok) await handleAPIError(res, "แก้ไขข้อมูลไม่สำเร็จ");
+    await ensureOk(res, "แก้ไขข้อมูลไม่สำเร็จ");
     return res.json();
   };
 
   const deleteSubject = async (id) => {
     const res = await fetch(`${API_BASE}${id}/`, {
       method: "DELETE",
-      headers: { "X-CSRFToken": getCSRFToken(), Accept: "application/json" },
+      headers: { "X-CSRFToken": getCSRF(), Accept: "application/json" },
     });
-    if (!res.ok) await handleAPIError(res, "ลบข้อมูลไม่สำเร็จ");
+    await ensureOk(res, "ลบข้อมูลไม่สำเร็จ");
     return true;
   };
 
   const deleteAllSubjects = async () => {
-    // สมมติให้ DELETE ที่ collection = ลบทั้งหมด (ตามไฟล์เดิม)
-    const res = await fetch(API_BASE, {
+    const res = await fetch(`/api/subjects/delete-all/`, {
       method: "DELETE",
-      headers: { "X-CSRFToken": getCSRFToken(), Accept: "application/json" },
+      headers: { "X-CSRFToken": getCSRF(), Accept: "application/json" },
     });
-    if (!res.ok) await handleAPIError(res, "ลบทั้งหมดไม่สำเร็จ");
+    await ensureOk(res, "ลบทั้งหมดไม่สำเร็จ");
     return true;
   };
 
-  // ---------- Render ----------
-  // ใส่ข้อความในปุ่มให้เหมือนหน้า teacher
+  // ---- Render ----
   const rowHTML = ({ id, code, name }) => `
     <tr data-id="${id}">
       <td class="fw-semibold text-center">${escapeHtml(code)}</td>
@@ -141,10 +165,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 data-code="${escapeHtml(code)}"
                 data-name="${escapeHtml(name)}"
                 title="แก้ไข">
-          <i class="bi bi-pencil-square me-1"></i><span>แก้ไข</span>
+          <span>แก้ไข</span>
         </button>
         <button type="button" class="btn-danger-gradient btn-delete" title="ลบ">
-          <i class="bi bi-trash3 me-1"></i><span>ลบ</span>
+          <span>ลบ</span>
         </button>
       </td>
     </tr>
@@ -162,124 +186,138 @@ document.addEventListener("DOMContentLoaded", () => {
     tbody.innerHTML = items.map(rowHTML).join("");
   };
 
+  // cache ไว้กันซ้ำและใช้เรนเดอร์เร็ว
+  let subjectCache = [];
   const refresh = async () => {
     try {
-      const data = await listSubjects();
-      // ถ้า API เป็น {results:[...]} ให้ใช้ data.results
-      const items = Array.isArray(data) ? data : data.results || [];
-      renderTable(items);
-    } catch (err) {
-      alert(err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล");
+      subjectCache = await listSubjects();
+      renderTable(subjectCache);
+    } catch (e) {
+      showToast("danger", "โหลดข้อมูลล้มเหลว", e.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล");
     }
   };
 
-  // ---------- Events ----------
+  // ---- Init ----
   refresh();
 
-  // เพิ่มข้อมูล ด้วยฟอร์มด้านบน
+  // ---- Events ----
+  // เพิ่มข้อมูล
   form?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const code = codeInput.value.trim();
+    const code = codeInput.value.trim().toUpperCase();
     const name = nameInput.value.trim();
     if (!code || !name) {
-      alert('กรุณากรอก "รหัสวิชา" และ "ชื่อรายวิชา" ให้ครบ');
+      showToast("warning", "ข้อมูลไม่ครบ", 'กรุณากรอก "รหัสวิชา" และ "ชื่อรายวิชา" ให้ครบ');
+      return;
+    }
+    // กันซ้ำฝั่ง client
+    const dup = subjectCache.find((x) => (x.code || "").toUpperCase() === code);
+    if (dup) {
+      showToast("warning", "รหัสวิชาซ้ำ", `รหัสวิชา ${code} มีอยู่แล้ว`);
       return;
     }
     try {
-      setLoading(true);
+      setLoading(btnSubmit, true);
       await createSubject({ code, name });
       form.reset();
+      showToast("success", "เพิ่มสำเร็จ", `เพิ่มรายวิชา ${code} แล้ว`);
       await refresh();
-    } catch (err) {
-      alert(err.message || "เกิดข้อผิดพลาดในการบันทึก");
+    } catch (e2) {
+      showToast("warning", "เพิ่มไม่สำเร็จ", e2.message || "เกิดข้อผิดพลาดในการบันทึก");
     } finally {
-      setLoading(false);
+      setLoading(btnSubmit, false);
     }
   });
 
-  // ยกเลิกโหมดแก้ (สำหรับกรณีคุณอยากใช้ฟอร์มด้านบนแก้ด้วย)
-  btnCancel?.addEventListener("click", () => {
-    form.reset();
-    editingId = null;
-    btnCancel.classList.add("d-none");
-    btnSubmit.innerHTML = `<i class="bi bi-plus-lg me-2"></i><span>เพิ่มข้อมูล</span>`;
-  });
-
-  // ตาราง: แก้ไข/ลบ
+  // แก้ไข/ลบ รายตัว
   tbody?.addEventListener("click", async (e) => {
-    const editBtn = e.target.closest(".btn-edit");
-    const delBtn = e.target.closest(".btn-delete");
     const row = e.target.closest("tr");
-    const id = row?.dataset?.id;
+    if (!row) return;
+    const id = row.dataset.id;
 
-    if (editBtn) {
-      const code =
-        editBtn.dataset.code ||
-        row.querySelector("td:nth-child(1)")?.textContent.trim() ||
-        "";
-      const name =
-        editBtn.dataset.name ||
-        row.querySelector("td:nth-child(2)")?.textContent.trim() ||
-        "";
-
-      modalId.value = id || "";
-      modalCode.value = code;
-      modalName.value = name;
-
-      new bootstrap.Modal(modalEl).show();
+    // แก้ไข
+    const editBtn = e.target.closest(".btn-edit");
+    if (editBtn && bsEdit) {
+      modalId.value = id;
+      modalCode.value = editBtn.dataset.code || row.children[0].textContent.trim();
+      modalName.value = editBtn.dataset.name || row.children[1].textContent.trim();
+      bsEdit.show();
       return;
     }
 
-    if (delBtn) {
-      if (!id) return;
-      if (!confirm("ยืนยันลบรายวิชานี้?")) return;
-      try {
-        await deleteSubject(id);
-        await refresh();
-      } catch (err) {
-        alert(err.message || "เกิดข้อผิดพลาดในการลบ");
-      }
+    // ลบ (รายตัว) → เปิด modal สวยๆ (แทน confirm())
+    const delBtn = e.target.closest(".btn-delete");
+    if (delBtn && id && bsDel) {
+      pendingDeleteId = id;
+      delItemCode.textContent = row.children[0]?.textContent.trim() || "";
+      delItemName.textContent = row.children[1]?.textContent.trim() || "";
+      bsDel.show();
+      return;
     }
   });
 
-  // ลบทั้งหมด
-  btnDeleteAll?.addEventListener("click", async () => {
-    if (!confirm("ยืนยันลบรายวิชาทั้งหมด? การกระทำนี้ย้อนกลับไม่ได้")) return;
+  // บันทึกแก้ไข
+  btnSave?.addEventListener("click", async () => {
+    const id = modalId.value;
+    const code = modalCode.value.trim().toUpperCase();
+    const name = modalName.value.trim();
+    if (!code || !name) {
+      showToast("warning", "ข้อมูลไม่ครบ", 'กรุณากรอก "รหัสวิชา" และ "ชื่อรายวิชา" ให้ครบ');
+      return;
+    }
+    const dup = subjectCache.find(
+      (x) => String(x.id) !== String(id) && (x.code || "").toUpperCase() === code
+    );
+    if (dup) {
+      showToast("warning", "รหัสวิชาซ้ำ", `รหัสวิชา ${code} ซ้ำกับรายการเดิม`);
+      return;
+    }
     try {
-      btnDeleteAll.disabled = true;
-      await deleteAllSubjects();
+      btnSave.disabled = true;
+      await updateSubject(id, { code, name });
+      bsEdit?.hide();
+      showToast("success", "แก้ไขสำเร็จ", `บันทึกรายวิชา ${code} แล้ว`);
+      await refresh();
+    } catch (e2) {
+      showToast("warning", "แก้ไขไม่สำเร็จ", e2.message || "เกิดข้อผิดพลาดในการแก้ไข");
+    } finally {
+      btnSave.disabled = false;
+    }
+  });
+
+  // ยืนยันลบ "รายตัว" จาก modal
+  btnConfirmDelete?.addEventListener("click", async () => {
+    if (!pendingDeleteId) return;
+    try {
+      btnConfirmDelete.disabled = true;
+      await deleteSubject(pendingDeleteId);
+      bsDel?.hide();
+      showToast("success", "ลบสำเร็จ", "รายการถูกลบแล้ว");
+      pendingDeleteId = null;
       await refresh();
     } catch (err) {
-      alert(err.message || "เกิดข้อผิดพลาดในการลบทั้งหมด");
+      showToast("danger", "ลบไม่สำเร็จ", err.message || "เกิดข้อผิดพลาดในการลบ");
     } finally {
-      btnDeleteAll.disabled = false;
+      btnConfirmDelete.disabled = false;
     }
   });
 
-  // บันทึกใน Modal (PUT)
-  document
-    .getElementById("btnSaveSubject")
-    ?.addEventListener("click", async () => {
-      const id = modalId.value;
-      const code = modalCode.value.trim();
-      const name = modalName.value.trim();
+  // ลบทั้งหมด (ยืนยันผ่าน modal)
+  btnDeleteAll?.addEventListener("click", () => {
+    bsDelAll?.show();
+  });
 
-      if (!id) {
-        alert("ไม่พบรหัสรายการ");
-        return;
-      }
-      if (!code || !name) {
-        alert('กรุณากรอก "รหัสวิชา" และ "ชื่อรายวิชา" ให้ครบ');
-        return;
-      }
-
-      try {
-        await updateSubject(id, { code, name });
-        await refresh();
-        bootstrap.Modal.getInstance(modalEl).hide();
-      } catch (err) {
-        // กรณีซ้ำ/ผิดพลาด backend ส่ง JSON message มา → alert ข้อความนั้น
-        alert(err.message || "ไม่สามารถบันทึกได้");
-      }
-    });
+  btnConfirmDeleteAll?.addEventListener("click", async () => {
+    try {
+      btnConfirmDeleteAll.disabled = true;
+      await deleteAllSubjects();
+      bsDelAll?.hide();
+      showToast("success", "ลบทั้งหมดสำเร็จ", "ลบข้อมูลรายวิชาทั้งหมดแล้ว");
+      await refresh();
+    } catch (e2) {
+      showToast("danger", "ลบทั้งหมดไม่สำเร็จ", e2.message || "เกิดข้อผิดพลาดในการลบทั้งหมด");
+    } finally {
+      btnConfirmDeleteAll.disabled = false;
+    }
+  });
 });

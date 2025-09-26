@@ -15,6 +15,7 @@ from django.conf import settings
 from django.db.models import Case, When, Value, IntegerField, Q
 from django.views.decorators.http import require_GET
 from django.db.models import Count
+from django.db.models import Q
 
 from decimal import Decimal
 import math
@@ -34,24 +35,19 @@ from .models import (
     DAY_CHOICES,
 )
 
-
 logger = logging.getLogger(__name__)
-
 
 def norm(s: str) -> str:
     return (s or "").strip()
 
-
 def norm_code(s: str) -> str:
     return norm(s).upper()
-
 
 def to_int(v, default=0) -> int:
     try:
         return int(str(v).strip())
     except Exception:
         return default
-
 
 DAY_ORDER = Case(
     When(Day__in=["จันทร์", "จ.", "Mon", "MON", "monday"], then=Value(1)),
@@ -65,14 +61,11 @@ DAY_ORDER = Case(
     output_field=IntegerField(),
 )
 
-
 def slot_start_hour(ts: str) -> int:
     m = re.search(r"(\d{1,2})(?::\d{2})?", ts or "")
     return int(m.group(1)) if m else 0
 
-
 # ========== หน้าเว็บ (Page Views) ==========
-
 
 def home(request):
     """หน้าแรกของระบบ"""
@@ -88,7 +81,6 @@ def home(request):
     }
     return render(request, "index.html", context)
 
-
 def course_page(request):
     from .models import CourseSchedule
 
@@ -99,7 +91,6 @@ def course_page(request):
     }
     return render(request, "course.html", context)
 
-
 def activity_page(request):
     """หน้าจัดการกิจกรรม"""
     activity = WeekActivity.objects.all()
@@ -109,7 +100,6 @@ def activity_page(request):
     }
     return render(request, "weekactivity.html", context)
 
-
 def pre_page(request):
     """หน้าจัดการตารางล่วงหน้า"""
     pre_schedules = PreSchedule.objects.all()
@@ -118,7 +108,6 @@ def pre_page(request):
         "pre_schedules": pre_schedules,
     }
     return render(request, "pre.html", context)
-
 
 # Hard-coded slot mapping แทนการใช้ SlotIdSchedule
 SLOT_TIME_MAPPING = {
@@ -182,7 +171,6 @@ def generate_schedule_api(request):
         import traceback; traceback.print_exc()
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
-
 def create_schedule_csv_file():
     """สร้างไฟล์ CSV จากตารางสอนในฐานข้อมูลและบันทึกลงเซิร์ฟเวอร์"""
     try:
@@ -239,9 +227,7 @@ def create_schedule_csv_file():
         logger.error(f"Error creating CSV file: {e}")
         return {"status": "error", "message": f"เกิดข้อผิดพลาดในการสร้างไฟล์ CSV: {str(e)}"}
 
-
 # ========== Test Program API ==========
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -267,7 +253,6 @@ def test_program_api(request):
             status=500,
             json_dumps_params={"ensure_ascii": False},
         )
-
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -326,7 +311,6 @@ def view_schedule_api(request):
 
 # ===== View from GeneratedSchedule (สำหรับหน้าเลือก) =====
 
-
 @csrf_exempt
 @require_http_methods(["GET"])
 def view_generated_schedule_api(request):
@@ -358,7 +342,6 @@ def view_generated_schedule_api(request):
 
 # ========== Clear Schedule API ==========
 
-
 @csrf_exempt
 @require_http_methods(["POST"])
 def clear_schedule_api(request):
@@ -382,7 +365,6 @@ def clear_schedule_api(request):
             status=500,
             json_dumps_params={"ensure_ascii": False},
         )
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -436,9 +418,7 @@ def delete_selected_schedules_api(request):
             json_dumps_params={"ensure_ascii": False},
         )
 
-
 # ========== COURSE APIs ==========
-
 
 @csrf_exempt
 def get_courses(request):
@@ -472,7 +452,6 @@ def get_courses(request):
             json_dumps_params={"ensure_ascii": False},
         )
 
-
 def _teacher_name_from_id(raw):
     try:
         tid = int(raw)
@@ -480,7 +459,6 @@ def _teacher_name_from_id(raw):
         return ""
     t = Teacher.objects.filter(id=tid).only("name").first()
     return t.name if t else ""
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -561,7 +539,6 @@ def add_course(request):
             json_dumps_params={"ensure_ascii": False},
         )
 
-
 @csrf_exempt
 @require_http_methods(["POST"])
 def add_course_bulk(request):
@@ -617,7 +594,6 @@ def add_course_bulk(request):
             status=500,
             json_dumps_params={"ensure_ascii": False},
         )
-
 
 @csrf_exempt
 @require_http_methods(["PUT"])
@@ -724,7 +700,6 @@ def update_course(request, id):
             json_dumps_params={"ensure_ascii": False},
         )
 
-
 @csrf_exempt
 @require_http_methods(["DELETE"])
 def delete_course(request, id):
@@ -750,7 +725,6 @@ def delete_course(request, id):
             status=500,
             json_dumps_params={"ensure_ascii": False},
         )
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -873,10 +847,7 @@ def course_delete_all(request):
             "message": f"เกิดข้อผิดพลาดในการลบทั้งหมด: {str(e)}"
         }, status=500, json_dumps_params={"ensure_ascii": False})
 
-
-
 # ========== PRE-SCHEDULE APIs ==========
-
 
 @csrf_exempt
 def get_pre(request):
@@ -921,7 +892,6 @@ def get_pre(request):
             status=500,
             json_dumps_params={"ensure_ascii": False},
         )
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -1118,7 +1088,6 @@ def pre_delete_all(request):
 #             json_dumps_params={"ensure_ascii": False},
 #         )
 
-
 @csrf_exempt
 @require_http_methods(["PUT"])
 # ------------- new update ตรวจสอบใช้ห้องซ้ำกัน-----------------------------------------------
@@ -1286,7 +1255,6 @@ def update_pre(request, id):
             json_dumps_params={"ensure_ascii": False},
         )
 
-
 # update เดิม ===================================================
 # def update_pre(request, id):
 #     """API สำหรับแก้ไขตารางล่วงหน้า"""
@@ -1355,7 +1323,6 @@ def update_pre(request, id):
 #             json_dumps_params={"ensure_ascii": False},
 #         )
 
-
 @csrf_exempt
 @require_http_methods(["DELETE"])
 def delete_pre(request, id):
@@ -1381,7 +1348,6 @@ def delete_pre(request, id):
             status=500,
             json_dumps_params={"ensure_ascii": False},
         )
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -1481,7 +1447,6 @@ def upload_pre_csv(request):
             json_dumps_params={"ensure_ascii": False},
         )
 
-
 # ========== ACTIVITY APIs ==========
 
 @csrf_exempt
@@ -1500,7 +1465,6 @@ def activity_delete_all(request):
             "status": "error",
             "message": f"เกิดข้อผิดพลาดในการลบทั้งหมด: {str(e)}"
         }, status=500, json_dumps_params={"ensure_ascii": False})
-
 
 @csrf_exempt
 def get_activity(request):
@@ -1540,7 +1504,6 @@ def get_activity(request):
             json_dumps_params={"ensure_ascii": False},
         )
 
-
 @csrf_exempt
 @require_http_methods(["POST"])
 def add_activity(request):
@@ -1575,7 +1538,6 @@ def add_activity(request):
             status=500,
             json_dumps_params={"ensure_ascii": False},
         )
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -1619,7 +1581,6 @@ def add_activity_bulk(request):
             json_dumps_params={"ensure_ascii": False},
         )
 
-
 @csrf_exempt
 @require_http_methods(["PUT"])
 def update_activity(request, id):
@@ -1662,7 +1623,6 @@ def update_activity(request, id):
             status=500,
             json_dumps_params={"ensure_ascii": False},
         )
-
 
 @csrf_exempt
 @require_http_methods(["DELETE"])
@@ -1774,10 +1734,7 @@ def upload_activity_csv(request):
             json_dumps_params={"ensure_ascii": False},
         )
 
-
-
 # ========== Time Parsing Utility ==========
-
 
 def parse_time_flexible(value, default_time="08:00"):
     """
@@ -1866,9 +1823,7 @@ def compute_stop_str(start_str: str, hours_str: str) -> str:
     except Exception:
         return ""
 
-
 # ========== Download Schedule API ==========
-
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -1929,13 +1884,11 @@ def download_schedule(request):
             json_dumps_params={"ensure_ascii": False},
         )
 
-
 # ========== Add info ==========
 def add_info(request):
     """หน้าเพิ่มข้อมูล"""
     context = {"title": "เพิ่มข้อมูล"}
     return render(request, "add.html", context)
-
 
 # ================ AddPIS ==================
 # ========== Subjact ==========
@@ -1947,24 +1900,39 @@ def subject(request):
 @require_http_methods(["GET", "POST"])
 def subjects_collection(request):
     if request.method == "GET":
-        # subject.js คาดว่าได้ "list ของ object" ตรง ๆ
-        items = list(Subject.objects.order_by("code").values("id", "code", "name"))
-        return JsonResponse(
-            items, safe=False, json_dumps_params={"ensure_ascii": False}
-        )
+        # --- params: q, order, limit, offset ---
+        q = (request.GET.get("q") or "").strip()
+        order = (request.GET.get("order") or "-id").strip()   # ค่าเริ่มต้น: ล่าสุดมาก่อน
+        try:
+            limit = int(request.GET.get("limit") or 500)      # ค่าเริ่มต้น: 500 แถว
+            offset = int(request.GET.get("offset") or 0)
+        except ValueError:
+            limit, offset = 500, 0
 
-    # POST: create (อิง code เป็น key, ถ้ามีอยู่แล้วให้อัปเดตชื่อ)
+        qs = Subject.objects.all()
+        if q:
+            qs = qs.filter(Q(code__icontains=q) | Q(name__icontains=q))
+
+        # ปลอดภัยกับ order เฉพาะฟิลด์ที่อนุญาต
+        allowed = {"id", "code", "name", "-id", "-code", "-name"}
+        order = order if order in allowed else "-id"
+        qs = qs.order_by(order)
+
+        if limit > 0:
+            qs = qs[offset:offset + limit]
+
+        items = list(qs.values("id", "code", "name"))
+        return JsonResponse(items, safe=False, json_dumps_params={"ensure_ascii": False})
+
+    # POST: create/update-or-create
     data = json.loads(request.body or "{}")
     code = (data.get("code") or "").strip().upper()
     name = (data.get("name") or "").strip()
     if not code or not name:
-        return JsonResponse({"message": "กรอก code และ name ให้ครบ"}, status=400)
+        return JsonResponse({"message": "กรอก code และ name ให้ครบ"}, status=400, json_dumps_params={"ensure_ascii": False})
 
     obj, created = Subject.objects.update_or_create(code=code, defaults={"name": name})
-    return JsonResponse(
-        {"id": obj.id, "created": created}, json_dumps_params={"ensure_ascii": False}
-    )
-
+    return JsonResponse({"id": obj.id, "created": created}, json_dumps_params={"ensure_ascii": False})
 
 @csrf_exempt
 @require_http_methods(["PUT", "DELETE"])
@@ -2010,13 +1978,9 @@ def subject_delete_all(request):
             "message": f"เกิดข้อผิดพลาดในการลบทั้งหมด: {str(e)}"
         }, status=500, json_dumps_params={"ensure_ascii": False})
 
-
-
-
 # ========== Teacher ==========
 def teacher(request):
     return render(request, "teacher.html", {"active_tab": "teacher"})
-
 
 @require_http_methods(["GET"])
 def teacher_list(request):
@@ -2025,7 +1989,6 @@ def teacher_list(request):
     return JsonResponse(
         {"status": "success", "items": items}, json_dumps_params={"ensure_ascii": False}
     )
-
 
 # ---------- Teacher: ADD ----------
 @csrf_exempt
@@ -2061,7 +2024,6 @@ def teacher_add(request):
         {"status": "success", "id": t.id, "name": t.name},
         json_dumps_params={"ensure_ascii": False},
     )
-
 
 # ---------- Teacher: UPDATE ----------
 @csrf_exempt
@@ -2111,7 +2073,6 @@ def teacher_update(request, pk):
         json_dumps_params={"ensure_ascii": False},
     )
 
-
 @csrf_exempt
 @require_http_methods(["DELETE"])
 def teacher_delete_all(request):
@@ -2134,7 +2095,6 @@ def teacher_delete(request, pk):
     Teacher.objects.filter(pk=pk).delete()
     return JsonResponse({"status": "success"})
 
-
 # ========== Student Group ==========
 def studentgroup(request):
     return render(request, "studentgroup.html", {"active_tab": "studentgroup"})
@@ -2155,7 +2115,6 @@ def studentgroup_list(request):
     return JsonResponse(
         {"status": "success", "items": items}, json_dumps_params={"ensure_ascii": False}
     )
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -2241,11 +2200,9 @@ def studentgroup_delete_all(request):
             "message": f"เกิดข้อผิดพลาดในการลบทั้งหมด: {str(e)}"
         }, status=500, json_dumps_params={"ensure_ascii": False})
 
-
 # ========== Group Type ==========
 def grouptype(request):
     return render(request, "grouptype.html", {"active_tab": "grouptype"})
-
 
 @require_http_methods(["GET"])
 def grouptype_list(request):
@@ -2254,7 +2211,6 @@ def grouptype_list(request):
     return JsonResponse(
         {"status": "success", "items": items}, json_dumps_params={"ensure_ascii": False}
     )
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -2323,7 +2279,6 @@ def grouptype_delete(request, pk):
 def groupallow(request):
     return render(request, "groupallow.html", {"active_tab": "groupallow"})
 
-
 @require_http_methods(["GET"])
 def groupallow_list(request):
     qs = GroupAllow.objects.select_related("group_type", "slot").order_by("id")
@@ -2343,7 +2298,6 @@ def groupallow_list(request):
     return JsonResponse(
         {"status": "success", "items": items}, json_dumps_params={"ensure_ascii": False}
     )
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -2365,7 +2319,6 @@ def groupallow_add(request):
         {"status": "success", "id": obj.id, "created": created},
         json_dumps_params={"ensure_ascii": False},
     )
-
 
 @csrf_exempt
 @require_http_methods(["DELETE"])
@@ -2395,7 +2348,6 @@ def groupallow_delete_all(request):
             json_dumps_params={"ensure_ascii": False},
         )
 
-
 # ========== Rooom ==========
 def room(request):
     return render(request, "room.html", {"active_tab": "room"})
@@ -2416,7 +2368,6 @@ def room_list(request):
     return JsonResponse(
         {"status": "success", "items": items}, json_dumps_params={"ensure_ascii": False}
     )
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -2448,7 +2399,6 @@ def room_add(request):
         {"status": "success", "id": obj.id}, json_dumps_params={"ensure_ascii": False}
     )
 
-
 @csrf_exempt
 @require_http_methods(["DELETE"])
 def room_delete_all(request):
@@ -2479,11 +2429,9 @@ def room_delete(request, pk):
     Room.objects.filter(pk=pk).delete()
     return JsonResponse({"status": "success"})
 
-
 # ========== Rooom Type ==========
 def roomtype(request):
     return render(request, "roomtype.html", {"active_tab": "roomtype"})
-
 
 @require_http_methods(["GET"])
 def roomtype_list(request):
@@ -2492,7 +2440,6 @@ def roomtype_list(request):
     return JsonResponse(
         {"status": "success", "items": items}, json_dumps_params={"ensure_ascii": False}
     )
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -2538,45 +2485,15 @@ def roomtype_delete_all(request):
             "message": f"เกิดข้อผิดพลาดในการลบทั้งหมด: {str(e)}"
         }, status=500, json_dumps_params={"ensure_ascii": False})
 
-
 @csrf_exempt
 @require_http_methods(["DELETE"])
 def roomtype_delete(request, pk):
     RoomType.objects.filter(pk=pk).delete()
     return JsonResponse({"status": "success"})
 
-
 # ========== Time Slot ==========
 def timeslot(request):
     return render(request, "timeslot.html", {"active_tab": "timeslot"})
-
-
-# DAY_MAP = {
-#     "จันทร์": "Mon",
-#     "อังคาร": "Tue",
-#     "พุธ": "Wed",
-#     "พฤหัสบดี": "Thu",
-#     "ศุกร์": "Fri",
-#     "เสาร์": "Sat",
-#     "อาทิตย์": "Sun",
-#     "Mon": "Mon",
-#     "Tue": "Tue",
-#     "Wed": "Wed",
-#     "Thu": "Thu",
-#     "Fri": "Fri",
-#     "Sat": "Sat",
-#     "Sun": "Sun",
-# }
-
-
-# def _norm_day(val: str):
-#     if not val:
-#         return None
-#     v = str(val).strip()
-#     if v in DAY_MAP:
-#         return DAY_MAP[v]
-#     up = v[:1].upper() + v[1:].lower()
-#     return DAY_MAP.get(up)
 
 DAY_THAI = {
     "จันทร์": "จันทร์",
@@ -2595,7 +2512,6 @@ DAY_THAI = {
     "Sat": "เสาร์",
     "Sun": "อาทิตย์",
 }
-
 
 def _norm_day(val: str):
     if not val:
@@ -2624,53 +2540,65 @@ def timeslot_list(request):
         {"status": "success", "items": items}, json_dumps_params={"ensure_ascii": False}
     )
 
-
 @csrf_exempt
 @require_http_methods(["POST"])
 def timeslot_add(request):
     data = json.loads(request.body or "{}")
-    raw_id = data.get("id")
-    day = _norm_day(data.get("day"))
+    day   = _norm_day(data.get("day"))
     start = parse_time(str(data.get("start") or "").strip())
-    end = parse_time(str(data.get("end") or "").strip())
-
-    if raw_id is None or str(raw_id).strip() == "":
-        return JsonResponse(
-            {"status": "error", "message": "รหัสคาบ (id) ห้ามว่าง"}, status=400
-        )
-    try:
-        pk = int(raw_id)
-    except (TypeError, ValueError):
-        return JsonResponse(
-            {"status": "error", "message": "รหัสคาบต้องเป็นตัวเลข"}, status=400
-        )
+    end   = parse_time(str(data.get("end") or "").strip())
 
     if not day or not start or not end:
         return JsonResponse(
-            {
-                "status": "error",
-                "message": "กรอกวัน/เวลาให้ครบและถูกต้อง (รูปแบบเวลา HH:MM)",
-            },
-            status=400,
+            {"status": "error", "message": "กรอกวัน/เวลาให้ครบ (HH:MM)"},
+            status=400, json_dumps_params={"ensure_ascii": False}
         )
     if start >= end:
         return JsonResponse(
-            {"status": "error", "message": "เวลาเริ่มต้องน้อยกว่าเวลาสิ้นสุด"}, status=400
+            {"status": "error", "message": "เวลาเริ่มต้องน้อยกว่าเวลาสิ้นสุด"},
+            status=400, json_dumps_params={"ensure_ascii": False}
         )
 
-    try:
-        obj, _created = TimeSlot.objects.update_or_create(
-            id=pk,
-            defaults={"day_of_week": day, "start_time": start, "stop_time": end},
-        )
-    except IntegrityError:
+    # กันซ้ำ: วันเดียวกัน + เวลาเดียวกัน
+    if TimeSlot.objects.filter(day_of_week=day, start_time=start, stop_time=end).exists():
         return JsonResponse(
-            {"status": "error", "message": "มีคาบ (วัน+เวลา) นี้อยู่แล้ว"}, status=400
+            {"status": "error", "message": "วันเดียวกันไม่อนุญาตให้มีช่วงเวลาเดียวกันซ้ำ"},
+            status=400, json_dumps_params={"ensure_ascii": False}
         )
 
-    return JsonResponse(
-        {"status": "success", "id": obj.id}, json_dumps_params={"ensure_ascii": False}
-    )
+    obj = TimeSlot.objects.create(day_of_week=day, start_time=start, stop_time=end)
+    return JsonResponse({"status": "success", "id": obj.id},
+                        json_dumps_params={"ensure_ascii": False})
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def timeslot_update(request, pk: int):
+    """แก้ไขคาบเวลา: ใช้ id จาก URL"""
+    try:
+        obj = TimeSlot.objects.get(pk=pk)
+    except TimeSlot.DoesNotExist:
+        return JsonResponse({"status": "error", "message": "ไม่พบคาบเวลา"}, status=404)
+
+    data  = json.loads(request.body or "{}")
+    day   = (data.get("day") or obj.day_of_week)
+    start = parse_time(str(data.get("start") or obj.start_time.strftime("%H:%M")))
+    end   = parse_time(str(data.get("end")   or obj.stop_time.strftime("%H:%M")))
+
+    if not day or not start or not end:
+        return JsonResponse({"status":"error","message":"กรอกวัน/เวลาให้ครบ (HH:MM)"}, status=400)
+    if start >= end:
+        return JsonResponse({"status":"error","message":"เวลาเริ่มต้องน้อยกว่าเวลาสิ้นสุด"}, status=400)
+
+    # กันซ้ำ (วัน+ช่วงเวลา) ยกเว้นตัวเอง
+    if TimeSlot.objects.filter(day_of_week=day, start_time=start, stop_time=end).exclude(pk=pk).exists():
+        return JsonResponse({"status":"error","message":"วันเดียวกันไม่อนุญาตให้มีช่วงเวลาเดียวกันซ้ำ"}, status=400)
+
+    obj.day_of_week = day
+    obj.start_time  = start
+    obj.stop_time   = end
+    obj.save(update_fields=["day_of_week", "start_time", "stop_time"])
+    return JsonResponse({"status":"success", "id": obj.id})
+
 
 @csrf_exempt
 @require_http_methods(["DELETE"])
@@ -2694,7 +2622,6 @@ def timeslot_delete(request, pk):
     TimeSlot.objects.filter(pk=pk).delete()
     return JsonResponse({"status": "success"})
 
-
 # ลำดับวันสำหรับ sort
 # _DAY_ORDER = {"Mon": 1, "Tue": 2, "Wed": 3, "Thu": 4, "Fri": 5, "Sat": 6, "Sun": 7}
 _DAY_ORDER = {
@@ -2709,7 +2636,6 @@ _DAY_ORDER = {
 # แม็พ code -> ชื่อไทย จาก DAY_CHOICES ใน models
 _DAY_THAI = dict(DAY_CHOICES)
 
-
 # ========== META (สำหรับดรอปดาวน์หน้า weekactivity) ==========
 @require_http_methods(["GET"])
 def meta_days(request):
@@ -2718,7 +2644,6 @@ def meta_days(request):
     days = sorted(set(codes), key=lambda c: _DAY_ORDER.get(c, 99))
     payload = [{"value": c, "text": _DAY_THAI.get(c, c)} for c in days]
     return JsonResponse({"days": payload}, json_dumps_params={"ensure_ascii": False})
-
 
 @require_http_methods(["GET"])
 def meta_start_times(request):
@@ -2740,7 +2665,6 @@ def meta_start_times(request):
     return JsonResponse(
         {"start_times": payload}, json_dumps_params={"ensure_ascii": False}
     )
-
 
 @require_http_methods(["GET"])
 def meta_stop_times(request):
@@ -2765,34 +2689,38 @@ def meta_stop_times(request):
         {"stop_times": payload}, json_dumps_params={"ensure_ascii": False}
     )
 
-
 @require_GET
 def teachers_lookup(request):
-    # ใช้ฟอร์แมตเดียวกับ teacher_list เพื่อลดความเสี่ยง front-end พัง
-    qs = Teacher.objects.order_by("id")
-    items = [{"id": t.id, "name": t.name} for t in qs]
-    return JsonResponse(
-        {"status": "success", "items": items}, json_dumps_params={"ensure_ascii": False}
-    )
-
+    q = (request.GET.get("q") or "").strip()
+    qs = Teacher.objects.all()
+    if q:
+        qs = qs.filter(name__icontains=q)
+    qs = qs.order_by("name")
+    items = [{"id": t.id, "name": t.name} for t in qs[:50]]
+    return JsonResponse({"status": "success", "items": items},
+                        json_dumps_params={"ensure_ascii": False})
 
 @require_GET
 def room_types_lookup(request):
-    qs = RoomType.objects.order_by("id")
-    items = [{"id": x.id, "name": x.name} for x in qs]
-    return JsonResponse(
-        {"status": "success", "items": items}, json_dumps_params={"ensure_ascii": False}
-    )
-
+    q = (request.GET.get("q") or "").strip()
+    qs = RoomType.objects.all()
+    if q:
+        qs = qs.filter(name__icontains=q)
+    qs = qs.order_by("name")
+    items = [{"id": x.id, "name": x.name} for x in qs[:50]]
+    return JsonResponse({"status": "success", "items": items},
+                        json_dumps_params={"ensure_ascii": False})
 
 @require_GET
 def student_groups_lookup(request):
-    # ส่งทั้ง id และ name (พอเพียงสำหรับ dropdown); ถ้าต้องใช้ type เพิ่มเติม ค่อยขยายทีหลัง
-    qs = StudentGroup.objects.select_related("group_type").order_by("id")
-    items = [{"id": g.id, "name": g.name} for g in qs]
-    return JsonResponse(
-        {"status": "success", "items": items}, json_dumps_params={"ensure_ascii": False}
-    )
+    q = (request.GET.get("q") or "").strip()
+    qs = StudentGroup.objects.select_related("group_type").all()
+    if q:
+        qs = qs.filter(name__icontains=q)
+    qs = qs.order_by("name")
+    items = [{"id": g.id, "name": g.name} for g in qs[:50]]
+    return JsonResponse({"status": "success", "items": items},
+                        json_dumps_params={"ensure_ascii": False})
 
 @require_http_methods(["GET"])
 def list_generated_entities_api(request):
@@ -2802,8 +2730,10 @@ def list_generated_entities_api(request):
     field_map = {
         "teacher": "teacher",
         "room": "room",
-        "subject": "subject_name",
         "group": "student_group",
+        "student_group": "student_group",
+        "students": "student_group",
+        "student": "student_group",
     }
     field = field_map.get(view, "teacher")
 
@@ -2816,4 +2746,222 @@ def list_generated_entities_api(request):
     results = [{"key": r[field] or "N/A", "display": r[field] or "N/A", "count": r["items"]} for r in rows]
 
     return JsonResponse({"status": "success", "view": view, "results": results},
+                        json_dumps_params={"ensure_ascii": False})
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def schedule_detail_api(request):
+    """
+    คืนแถวตารางสอนแบบ normalize ของ entity ที่เลือก
+    ?view=teacher|room|student_group  (รองรับ alias: group/student/students)
+    ?key=<ชื่อที่แสดงบนการ์ด เช่น 'อ.กิตตินันท น้อยมณี' หรือ '7305'>
+    """
+    from .models import GeneratedSchedule, PreSchedule, WeekActivity
+
+    view = (request.GET.get("view") or "teacher").lower().strip()
+    field_map = {
+        "teacher": "teacher",
+        "room": "room",
+        "group": "student_group",
+        "student_group": "student_group",
+        "students": "student_group",
+        "student": "student_group",
+    }
+    field = field_map.get(view, "teacher")
+    key = (request.GET.get("key") or "").strip()
+
+    if not key:
+        return JsonResponse({"status": "error", "message": "missing key"}, status=400)
+
+    rows = []
+
+    # ---------- 1) GeneratedSchedule ----------
+    gqs = GeneratedSchedule.objects.all()
+    gqs = gqs.filter(**{f"{field}__iexact": key})
+    gqs = gqs.order_by("day_of_week", "start_time", "id")
+    for g in gqs:
+        rows.append({
+            "Source": "Generated",
+            "Day": g.day_of_week or "",
+            "Start": g.start_time.strftime("%H:%M") if g.start_time else "",
+            "Stop": g.stop_time.strftime("%H:%M") if g.stop_time else "",
+            "Course_Code": g.subject_code or "",
+            "Subject_Name": g.subject_name or "",
+            "Teacher": g.teacher or "",
+            "Room": g.room or "",
+            "Type": g.type or "",
+            "Student_Group": g.student_group or "",
+        })
+
+    # ---------- 2) PreSchedule ----------
+    # mapping ชื่อให้ตรงตาม view
+    pre_field_map = {
+        "teacher": "teacher_name_pre",
+        "room": "room_name_pre",
+        "student_group": "student_group_name_pre",
+    }
+    pf = pre_field_map[field]
+    pqs = PreSchedule.objects.all().filter(**{f"{pf}__iexact": key})
+    pqs = pqs.order_by("day_pre", "start_time_pre", "id")
+    for p in pqs:
+        rows.append({
+            "Source": "Pre",
+            "Day": p.day_pre or "",
+            "Start": p.start_time_pre.strftime("%H:%M") if p.start_time_pre else "",
+            "Stop": p.stop_time_pre.strftime("%H:%M") if p.stop_time_pre else "",
+            "Course_Code": p.subject_code_pre or "",
+            "Subject_Name": p.subject_name_pre or "",
+            "Teacher": p.teacher_name_pre or "",
+            "Room": p.room_name_pre or "",
+            # ภาคเรียน/ห้องที่ใช้ใน pre: ใช้ room_type_pre / type_pre ตามที่คุณเก็บ
+            "Type": p.type_pre or p.room_type_pre or "",
+            "Student_Group": p.student_group_name_pre or "",
+        })
+
+    # ---------- 3) WeekActivity ----------
+    # สำหรับกิจกรรม ให้ผูกกับ "กลุ่มนักศึกษา" หรือ "อาจารย์/ห้อง" ตามที่คุณใช้จริง
+    # ตอนนี้ตัวอย่างจะไม่กรองด้วย key (แสดงเฉพาะเมื่อดูแบบ room/teacher/group ก็ได้)
+    # ถ้าอยากผูกให้แน่น อาจต้องเพิ่มฟิลด์ใน WeekActivity
+    if view == "room":
+        # ถ้าในอนาคตมี room_name_activity ค่อยกรอง; ตอนนี้ขอข้ามการกรอง
+        pass
+    # แสดงกิจกรรมทั่วไปทั้งหมดเฉพาะเมื่อ key เป็น 'N/A' (ตาม UI ตัวอย่าง)
+    if key.upper() == "N/A":
+        aqs = WeekActivity.objects.order_by("day_activity", "start_time_activity", "id")
+        for a in aqs:
+            rows.append({
+                "Source": "Activity",
+                "Day": a.day_activity or "",
+                "Start": a.start_time_activity.strftime("%H:%M") if a.start_time_activity else "",
+                "Stop": a.stop_time_activity.strftime("%H:%M") if a.stop_time_activity else "",
+                "Course_Code": "",
+                "Subject_Name": a.act_name_activity or "กิจกรรม",
+                "Teacher": "N/A",
+                "Room": "N/A",
+                "Type": "activity",
+                "Student_Group": "N/A",
+            })
+
+    # ---- sort: วัน-เวลา ----
+    _ORDER = {"จันทร์":1,"อังคาร":2,"พุธ":3,"พฤหัสบดี":4,"ศุกร์":5,"เสาร์":6,"อาทิตย์":7}
+    def _key(r):
+        d = _ORDER.get(r["Day"], 99)
+        try:
+            hh, mm = (r["Start"] or "00:00").split(":")
+            t = int(hh)*60+int(mm)
+        except Exception:
+            t = 0
+        return (d, t, r.get("Subject_Name",""))
+    rows.sort(key=_key)
+
+    return JsonResponse({"status":"success", "view": view, "key": key, "rows": rows},
+                        json_dumps_params={"ensure_ascii": False})
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def schedule_detail_api(request):
+    """
+    คืนแถวตารางสอนแบบ normalize ของ entity ที่เลือก
+    ?view=teacher|room|student_group  (รองรับ alias: group/student/students)
+    ?key=<ชื่อที่แสดงบนการ์ด เช่น 'อ.กิตตินันท น้อยมณี' หรือ '7305'>
+    """
+    from .models import GeneratedSchedule, PreSchedule, WeekActivity
+
+    view = (request.GET.get("view") or "teacher").lower().strip()
+    field_map = {
+        "teacher": "teacher",
+        "room": "room",
+        "group": "student_group",
+        "student_group": "student_group",
+        "students": "student_group",
+        "student": "student_group",
+    }
+    field = field_map.get(view, "teacher")
+    key = (request.GET.get("key") or "").strip()
+
+    if not key:
+        return JsonResponse({"status": "error", "message": "missing key"}, status=400)
+
+    rows = []
+
+    # ---------- 1) GeneratedSchedule ----------
+    gqs = GeneratedSchedule.objects.all()
+    gqs = gqs.filter(**{f"{field}__iexact": key})
+    gqs = gqs.order_by("day_of_week", "start_time", "id")
+    for g in gqs:
+        rows.append({
+            "Source": "Generated",
+            "Day": g.day_of_week or "",
+            "Start": g.start_time.strftime("%H:%M") if g.start_time else "",
+            "Stop": g.stop_time.strftime("%H:%M") if g.stop_time else "",
+            "Course_Code": g.subject_code or "",
+            "Subject_Name": g.subject_name or "",
+            "Teacher": g.teacher or "",
+            "Room": g.room or "",
+            "Type": g.type or "",
+            "Student_Group": g.student_group or "",
+        })
+
+    # ---------- 2) PreSchedule ----------
+    # mapping ชื่อให้ตรงตาม view
+    pre_field_map = {
+        "teacher": "teacher_name_pre",
+        "room": "room_name_pre",
+        "student_group": "student_group_name_pre",
+    }
+    pf = pre_field_map[field]
+    pqs = PreSchedule.objects.all().filter(**{f"{pf}__iexact": key})
+    pqs = pqs.order_by("day_pre", "start_time_pre", "id")
+    for p in pqs:
+        rows.append({
+            "Source": "Pre",
+            "Day": p.day_pre or "",
+            "Start": p.start_time_pre.strftime("%H:%M") if p.start_time_pre else "",
+            "Stop": p.stop_time_pre.strftime("%H:%M") if p.stop_time_pre else "",
+            "Course_Code": p.subject_code_pre or "",
+            "Subject_Name": p.subject_name_pre or "",
+            "Teacher": p.teacher_name_pre or "",
+            "Room": p.room_name_pre or "",
+            # ภาคเรียน/ห้องที่ใช้ใน pre: ใช้ room_type_pre / type_pre ตามที่คุณเก็บ
+            "Type": p.type_pre or p.room_type_pre or "",
+            "Student_Group": p.student_group_name_pre or "",
+        })
+
+    # ---------- 3) WeekActivity ----------
+    # สำหรับกิจกรรม ให้ผูกกับ "กลุ่มนักศึกษา" หรือ "อาจารย์/ห้อง" ตามที่คุณใช้จริง
+    # ตอนนี้ตัวอย่างจะไม่กรองด้วย key (แสดงเฉพาะเมื่อดูแบบ room/teacher/group ก็ได้)
+    # ถ้าอยากผูกให้แน่น อาจต้องเพิ่มฟิลด์ใน WeekActivity
+    if view == "room":
+        # ถ้าในอนาคตมี room_name_activity ค่อยกรอง; ตอนนี้ขอข้ามการกรอง
+        pass
+    # แสดงกิจกรรมทั่วไปทั้งหมดเฉพาะเมื่อ key เป็น 'N/A' (ตาม UI ตัวอย่าง)
+    if key.upper() == "N/A":
+        aqs = WeekActivity.objects.order_by("day_activity", "start_time_activity", "id")
+        for a in aqs:
+            rows.append({
+                "Source": "Activity",
+                "Day": a.day_activity or "",
+                "Start": a.start_time_activity.strftime("%H:%M") if a.start_time_activity else "",
+                "Stop": a.stop_time_activity.strftime("%H:%M") if a.stop_time_activity else "",
+                "Course_Code": "",
+                "Subject_Name": a.act_name_activity or "กิจกรรม",
+                "Teacher": "N/A",
+                "Room": "N/A",
+                "Type": "activity",
+                "Student_Group": "N/A",
+            })
+
+    # ---- sort: วัน-เวลา ----
+    _ORDER = {"จันทร์":1,"อังคาร":2,"พุธ":3,"พฤหัสบดี":4,"ศุกร์":5,"เสาร์":6,"อาทิตย์":7}
+    def _key(r):
+        d = _ORDER.get(r["Day"], 99)
+        try:
+            hh, mm = (r["Start"] or "00:00").split(":")
+            t = int(hh)*60+int(mm)
+        except Exception:
+            t = 0
+        return (d, t, r.get("Subject_Name",""))
+    rows.sort(key=_key)
+
+    return JsonResponse({"status":"success", "view": view, "key": key, "rows": rows},
                         json_dumps_params={"ensure_ascii": False})

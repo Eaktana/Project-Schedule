@@ -2,23 +2,30 @@
 {% load static %}
 {% block title %}ข้อมูลภาคนักศึกษา | ระบบจัดตารางสอน{% endblock %}
 {% block content %}
+
+<!-- ===== ฟอร์มเพิ่มภาคนักศึกษา ===== -->
 <div class="card shadow-sm">
-  <div class="card-header"><h5 class="mb-0">ข้อมูลภาคนักศึกษา</h5></div>
+  <div class="card-header">
+    <h5 class="mb-0 d-flex align-items-center">
+      <i class="bi bi-people me-2"></i> ข้อมูลภาคนักศึกษา
+    </h5>
+  </div>
+
   <div class="card-body p-4">
-    <form id="groupTypeForm" class="row g-3" method="post">
-      <!-- {% csrf_token %} -->
+    <form id="groupTypeForm" class="row g-3" method="post" novalidate>
+      {% csrf_token %}
       <div class="col-md-4">
         <label class="form-label" for="dept_id">รหัสภาค</label>
-        <input id="dept_id" type="number" class="form-control" placeholder="1">
+        <input id="dept_id" type="number" class="form-control" placeholder="เช่น 1" required />
       </div>
-      <div class="col-md-4">
+      <div class="col-md-6">
         <label class="form-label" for="student_type">ประเภทนักศึกษา</label>
-        <input id="student_type" type="text" class="form-control" placeholder="เช่น ภาคปกติ">
+        <input id="student_type" type="text" class="form-control" placeholder="เช่น ภาคปกติ" required />
       </div>
       <div class="col-12">
         <div class="d-flex justify-content-end mt-3 gap-2">
           <button id="btnCancelGroupTypeEdit" type="button" class="btn btn-outline-secondary d-none">ยกเลิก</button>
-          <button id="btnAddGroupType" type="button" class="btn btn-primary-gradient px-4">
+          <button id="btnAddGroupType" type="submit" class="btn-primary-gradient px-4">
             <i class="bi bi-plus-lg me-2"></i><span>เพิ่มข้อมูล</span>
           </button>
         </div>
@@ -27,58 +34,125 @@
   </div>
 </div>
 
+<!-- ===== รายการภาคนักศึกษา ===== -->
 <div class="card shadow-sm mt-4">
   <div class="card-header d-flex align-items-center">
-    <i class="bi bi-table me-2"></i><h5 class="mb-0">รายการภาคนักศึกษา</h5>
+    <i class="bi bi-table me-2"></i>
+    <h5 class="mb-0">รายการภาคนักศึกษา</h5>
   </div>
-  <div class="card-body p-4">
-    <div class="table-responsive table-rounded">
-      <table class="table align-middle mb-0">
-        <thead><tr><th>รหัสภาค</th><th>ประเภทนักศึกษา</th><th>จัดการ</th></tr></thead>
-        <tbody id="groupTypeTableBody">
-          {% for gt in group_types %}
-          <tr data-id="{{ gt.id }}">
-            <td>{{ gt.dept_id }}</td>
-            <td>{{ gt.student_type }}</td>
-            <td class="d-flex gap-2 justify-content-center">
-              <!-- ปุ่มแก้ไข -->
-              <button
-                class="btn-warning-gradient"
-                onclick="editGroupType(this)"
-                title="แก้ไข"
-              >
-                <i class="bi bi-pencil"></i>
-              </button>
 
-              <!-- ปุ่มลบ -->
-              <button
-                class="btn-danger-gradient"
-                onclick="deleteGroupType(this)"
-                title="ลบ"
-              >
-                <i class="bi bi-trash"></i>
-              </button>
-            </td>
-          </tr>
-          {% empty %}
-          <tr class="empty-row">
-            <td colspan="3" class="text-center text-muted">
-              ไม่มีข้อมูลภาคนักศึกษา
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-
-      </table>
-    </div>
-    <div class="d-flex justify-content-end mt-4">
-      <button id="btnDeleteAllTeacher" class="btn-danger-gradient btn-lg px-4">
-        <i class="bi bi-trash3 me-2"></i>ลบทั้งหมด
+  <!-- ปุ่มลบทั้งหมด -->
+  <div class="px-4 py-3 border-bottom">
+    <div class="d-flex justify-content-end">
+      <button id="btnDeleteAllGroupType" class="btn-danger-gradient btn-sm px-3 text-nowrap" type="button">
+        <i class="bi bi-trash3 me-1"></i>ลบทั้งหมด
       </button>
     </div>
   </div>
+
+  <div class="card-body p-0">
+    <div class="list-shell">
+      <div class="list-scroll p-4">
+        <div class="table-responsive table-rounded">
+          <table class="table align-middle mb-0">
+            <thead>
+              <tr>
+                <th class="text-center" style="width: 160px">รหัสภาค</th>
+                <th>ประเภทนักศึกษา</th>
+                <th class="text-center" style="width: 200px">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="groupTypeTableBody">
+              <tr class="empty-row">
+                <td colspan="3" class="text-center text-muted">ไม่มีข้อมูลภาคนักศึกษา</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+
+<!-- ===== Modal: แก้ไข ===== -->
+<div class="modal fade" id="editGroupTypeModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0" style="border-radius:16px">
+      <div class="modal-header" style="background:#5b2be0;color:#fff;border-top-left-radius:16px;border-top-right-radius:16px">
+        <h5 class="modal-title">แก้ไขภาคนักศึกษา</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit_gt_id" />
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label" for="edit_dept_id">รหัสภาค</label>
+            <input id="edit_dept_id" type="number" class="form-control" />
+          </div>
+          <div class="col-md-8">
+            <label class="form-label" for="edit_student_type">ประเภทนักศึกษา</label>
+            <input id="edit_student_type" type="text" class="form-control" />
+          </div>
+        </div>
+        <div class="text-end mt-3">
+          <button type="button" class="btn btn-outline-secondary me-2" data-bs-dismiss="modal">ยกเลิก</button>
+          <button type="button" class="btn btn-primary-gradient" id="btnSaveGroupType">บันทึก</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: ยืนยันลบเดี่ยว ===== -->
+<div class="modal fade" id="confirmDeleteGroupTypeModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0" style="border-radius:16px">
+      <div class="modal-header bg-danger text-white" style="border-top-left-radius:16px;border-top-right-radius:16px">
+        <h5 class="modal-title">ยืนยันการลบ</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1">ต้องการลบ <span class="fw-bold" id="del_gt_label">—</span> ใช่หรือไม่?</p>
+        <small class="text-muted">การลบนี้ไม่สามารถย้อนกลับได้</small>
+      </div>
+      <div class="modal-footer" style="flex-wrap:nowrap">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn btn-danger-gradient text-nowrap px-3" id="btnConfirmDeleteGroupType">ลบ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: ยืนยันลบทั้งหมด ===== -->
+<div class="modal fade" id="confirmDeleteAllGroupTypeModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0" style="border-radius:16px">
+      <div class="modal-header bg-danger text-white" style="border-top-left-radius:16px;border-top-right-radius:16px">
+        <h5 class="modal-title">ยืนยันการลบ</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">คุณต้องการลบ <span class="fw-bold">ข้อมูลภาคนักศึกษาทั้งหมด</span> ใช่หรือไม่?</p>
+        <small class="text-muted">การลบนี้ไม่สามารถย้อนกลับได้</small>
+      </div>
+      <div class="modal-footer" style="flex-wrap:nowrap">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn btn-danger-gradient text-nowrap px-3" id="btnConfirmDeleteAllGroupType">ลบทั้งหมด</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CSS เสริม (สไตล์เดียวกับ subject) ===== -->
+<style>
+  .list-shell{ border-bottom-left-radius:12px;border-bottom-right-radius:12px;overflow:hidden;background:transparent; }
+  .list-scroll{ max-height:60vh; overflow-y:auto; scrollbar-gutter:stable both-edges; padding-right:1rem; margin-right:-.5rem; padding-bottom:.5rem; }
+  .table-rounded{ border-radius:12px; background-clip:padding-box; }
+</style>
+
 {% endblock %}
 {% block scripts %}
-<script src="{% static 'js/grouptype.js' %}"></script>
+  <!-- Toast container -->
+  <div id="toastHost" class="toast-container position-fixed top-0 end-0 p-3" style="z-index:1080"></div>
+  <script src="{% static 'js/grouptype.js' %}"></script>
 {% endblock %}

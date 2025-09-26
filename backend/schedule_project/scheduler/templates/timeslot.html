@@ -1,36 +1,64 @@
-{% extends "add.html" %}
-{% load static %}
-{% block title %}ข้อมูลคาบเวลา | ระบบจัดตารางสอน{% endblock %}
-{% block content %}
+{% extends "add.html" %} {% load static %} {% block title %}ข้อมูลคาบเวลา |
+ระบบจัดตารางสอน{% endblock %} {% block content %}
+
+<!-- ===== ฟอร์มเพิ่มคาบเวลา (ไม่ใช้ id) ===== -->
 <div class="card shadow-sm">
-  <div class="card-header"><h5 class="mb-0">ข้อมูลคาบเวลา</h5></div>
+  <div class="card-header">
+    <h5 class="mb-0 d-flex align-items-center">
+      <i class="bi bi-clock-history me-2"></i> ข้อมูลคาบเวลา
+    </h5>
+  </div>
+
   <div class="card-body p-4">
-    <form id="timeslotForm" class="row g-3" method="post">
-      <!-- {% csrf_token %} -->
-      <div class="col-md-3">
-        <label class="form-label" for="ts_id">รหัสคาบ</label>
-        <input id="ts_id" type="number" class="form-control" placeholder="1">
-      </div>
+    <form id="timeslotForm" class="row g-3" method="post" novalidate>
+      {% csrf_token %}
       <div class="col-md-3">
         <label class="form-label" for="ts_day">วัน</label>
-        <select id="ts_day" class="form-select">
-          <option selected disabled>เลือกวัน</option>
-          <option>จันทร์</option><option>อังคาร</option><option>พุธ</option>
-          <option>พฤหัสบดี</option><option>ศุกร์</option><option>เสาร์</option><option>อาทิตย์</option>
+        <select id="ts_day" class="form-select" required>
+          <option selected disabled value="">เลือกวัน</option>
+          <option value="จันทร์">จันทร์</option>
+          <option value="อังคาร">อังคาร</option>
+          <option value="พุธ">พุธ</option>
+          <option value="พฤหัสบดี">พฤหัสบดี</option>
+          <option value="ศุกร์">ศุกร์</option>
+          <option value="เสาร์">เสาร์</option>
+          <option value="อาทิตย์">อาทิตย์</option>
         </select>
       </div>
       <div class="col-md-3">
         <label class="form-label" for="ts_start">เวลาเริ่ม</label>
-        <input id="ts_start" type="time" class="form-control" step="60">
+        <input
+          id="ts_start"
+          type="time"
+          class="form-control"
+          step="60"
+          required
+        />
       </div>
       <div class="col-md-3">
         <label class="form-label" for="ts_end">เวลาสิ้นสุด</label>
-        <input id="ts_end" type="time" class="form-control" step="60">
+        <input
+          id="ts_end"
+          type="time"
+          class="form-control"
+          step="60"
+          required
+        />
       </div>
       <div class="col-12">
         <div class="d-flex justify-content-end mt-3 gap-2">
-          <button id="btnCancelTimeSlotEdit" type="button" class="btn btn-outline-secondary d-none">ยกเลิก</button>
-          <button id="btnAddTimeSlot" type="button" class="btn btn-primary-gradient px-4">
+          <button
+            id="btnCancelTimeSlotEdit"
+            type="button"
+            class="btn btn-outline-secondary d-none"
+          >
+            ยกเลิก
+          </button>
+          <button
+            id="btnAddTimeSlot"
+            type="submit"
+            class="btn-primary-gradient px-4"
+          >
             <i class="bi bi-plus-lg me-2"></i><span>เพิ่มข้อมูล</span>
           </button>
         </div>
@@ -39,37 +67,353 @@
   </div>
 </div>
 
+<!-- ===== รายการคาบเวลา ===== -->
 <div class="card shadow-sm mt-4">
   <div class="card-header d-flex align-items-center">
-    <i class="bi bi-table me-2"></i><h5 class="mb-0">รายการคาบเวลา</h5>
+    <i class="bi bi-table me-2"></i>
+    <h5 class="mb-0">รายการคาบเวลา</h5>
   </div>
-  <div class="card-body p-4">
-    <div class="table-responsive table-rounded">
-      <table class="table align-middle mb-0">
-        <thead><tr><th>รหัสคาบ</th><th>วัน</th><th>เวลาเริ่ม</th><th>เวลาสิ้นสุด</th><th>จัดการ</th></tr></thead>
-        <tbody id="timeslotTableBody">
-          <tr class="empty-row"><td colspan="5" class="text-center text-muted">ไม่มีข้อมูลคาบเวลา</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="d-flex justify-content-end mt-4">
-      <button id="btnDeleteAllTimeSlot" class="btn btn-danger btn-lg px-4">
-        <i class="bi bi-trash3 me-2"></i>ลบทั้งหมด
+
+  <!-- ปุ่มลบทั้งหมด -->
+  <div class="px-4 py-3 border-bottom">
+    <div class="d-flex justify-content-end">
+      <button
+        id="btnDeleteAllTimeSlot"
+        class="btn-danger-gradient btn-sm px-3 text-nowrap"
+        type="button"
+      >
+        <i class="bi bi-trash3 me-1"></i>ลบทั้งหมด
       </button>
     </div>
   </div>
-</div>
-{% endblock %}
-{% block scripts %}
-<script>
-  const tsStart = document.getElementById("ts_start");
-  const display = document.getElementById("ts_start_display");
 
-  tsStart.addEventListener("input", () => {
-    let value = tsStart.value; // ได้ "HH:MM" (เช่น "14:30") เสมอ
-    display.textContent = value; // แสดง 24 ชั่วโมงตรง ๆ
-  });
+  <div class="card-body p-0">
+    <div class="list-shell">
+      <div class="list-scroll p-4">
+        <div class="table-responsive table-rounded">
+          <table class="table align-middle mb-0">
+            <thead>
+              <tr>
+                <th style="width: 140px">วัน</th>
+                <th class="text-center" style="width: 160px">เวลาเริ่ม</th>
+                <th class="text-center" style="width: 160px">เวลาสิ้นสุด</th>
+                <th class="text-center" style="width: 200px">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="timeslotTableBody">
+              <tr class="empty-row">
+                <td colspan="4" class="text-center text-muted">
+                  ไม่มีข้อมูลคาบเวลา
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: แก้ไขคาบเวลา ===== -->
+<div class="modal fade" id="editTimeSlotModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0" style="border-radius: 16px">
+      <div
+        class="modal-header"
+        style="
+          background: #5b2be0;
+          color: #fff;
+          border-top-left-radius: 16px;
+          border-top-right-radius: 16px;
+        "
+      >
+        <h5 class="modal-title">แก้ไขคาบเวลา</h5>
+        <button
+          type="button"
+          class="btn-close btn-close-white"
+          data-bs-dismiss="modal"
+          aria-label="Close"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <!-- ซ่อนไว้เฉพาะสำหรับเรียกใช้ backend (ไม่แสดงผล) -->
+        <input type="hidden" id="edit_timeslot_id" />
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label" for="edit_ts_day">วัน</label>
+            <select id="edit_ts_day" class="form-select">
+              <option value="จันทร์">จันทร์</option>
+              <option value="อังคาร">อังคาร</option>
+              <option value="พุธ">พุธ</option>
+              <option value="พฤหัสบดี">พฤหัสบดี</option>
+              <option value="ศุกร์">ศุกร์</option>
+              <option value="เสาร์">เสาร์</option>
+              <option value="อาทิตย์">อาทิตย์</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="edit_ts_start">เวลาเริ่ม</label>
+            <input
+              id="edit_ts_start"
+              type="time"
+              class="form-control"
+              step="60"
+            />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="edit_ts_end">เวลาสิ้นสุด</label>
+            <input
+              id="edit_ts_end"
+              type="time"
+              class="form-control"
+              step="60"
+            />
+          </div>
+        </div>
+        <div class="text-end mt-3">
+          <button
+            type="button"
+            class="btn btn-outline-secondary me-2"
+            data-bs-dismiss="modal"
+          >
+            ยกเลิก
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary-gradient"
+            id="btnSaveTimeSlot"
+          >
+            บันทึก
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: ยืนยันลบ (รายตัว) ===== -->
+<div
+  class="modal fade"
+  id="confirmDeleteTimeSlotModal"
+  tabindex="-1"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0" style="border-radius: 16px">
+      <div
+        class="modal-header bg-danger text-white"
+        style="border-top-left-radius: 16px; border-top-right-radius: 16px"
+      >
+        <h5 class="modal-title">ยืนยันการลบ</h5>
+        <button
+          type="button"
+          class="btn-close btn-close-white"
+          data-bs-dismiss="modal"
+          aria-label="Close"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1">
+          ต้องการลบคาบเวลา <span class="fw-bold" id="del_ts_day">—</span> เวลา
+          <span class="fw-bold" id="del_ts_range">—</span> ใช่หรือไม่?
+        </p>
+        <small class="text-muted">การลบนี้ไม่สามารถย้อนกลับได้</small>
+      </div>
+      <div class="modal-footer" style="flex-wrap: nowrap">
+        <button
+          type="button"
+          class="btn btn-outline-secondary"
+          data-bs-dismiss="modal"
+        >
+          ยกเลิก
+        </button>
+        <button
+          type="button"
+          class="btn btn-danger-gradient text-nowrap px-3"
+          id="btnConfirmDeleteTimeSlot"
+        >
+          ลบ
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: ยืนยันลบทั้งหมด ===== -->
+<div
+  class="modal fade"
+  id="confirmDeleteAllTimeSlotModal"
+  tabindex="-1"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0" style="border-radius: 16px">
+      <div
+        class="modal-header bg-danger text-white"
+        style="border-top-left-radius: 16px; border-top-right-radius: 16px"
+      >
+        <h5 class="modal-title">ยืนยันการลบ</h5>
+        <button
+          type="button"
+          class="btn-close btn-close-white"
+          data-bs-dismiss="modal"
+          aria-label="Close"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">
+          คุณต้องการลบ
+          <span class="fw-bold">ข้อมูลคาบเวลาทั้งหมด</span> ใช่หรือไม่?
+        </p>
+        <small class="text-muted">การลบนี้ไม่สามารถย้อนกลับได้</small>
+      </div>
+      <div class="modal-footer" style="flex-wrap: nowrap">
+        <button
+          type="button"
+          class="btn btn-outline-secondary"
+          data-bs-dismiss="modal"
+        >
+          ยกเลิก
+        </button>
+        <button
+          type="button"
+          class="btn btn-danger-gradient text-nowrap px-3"
+          style="flex: 0 0 100px"
+          id="btnConfirmDeleteAllTimeSlot"
+        >
+          ลบทั้งหมด
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== สีประจำวัน ===== -->
+<style>
+  .day-chip {
+    display: inline-block;
+    padding: 0.35rem 0.6rem;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+  .day-mon {
+    background: #fff3bf;
+    color: #664d03;
+  } /* จันทร์: เหลือง */
+  .day-tue {
+    background: #ffd6e7;
+    color: #7a244d;
+  } /* อังคาร: ชมพู */
+  .day-wed {
+    background: #d1e7dd;
+    color: #0f5132;
+  } /* พุธ: เขียว */
+  .day-thu {
+    background: #ffe5cc;
+    color: #7a3c00;
+  } /* พฤหัส: ส้ม */
+  .day-fri {
+    background: #cce5ff;
+    color: #084298;
+  } /* ศุกร์: ฟ้า */
+  .day-sat {
+    background: #e7e1ff;
+    color: #3d2b8c;
+  } /* เสาร์: ม่วง */
+  .day-sun {
+    background: #f8d7da;
+    color: #842029;
+  } /* อาทิตย์: แดง */
+  .list-shell {
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    overflow: hidden;
+    background: transparent;
+  }
+  .list-scroll {
+    max-height: 60vh;
+    overflow-y: auto;
+    scrollbar-gutter: stable both-edges;
+    padding-right: 1rem;
+    margin-right: -0.5rem;
+    padding-bottom: 0.5rem;
+  }
+  .table-rounded {
+    border-radius: 12px;
+    background-clip: padding-box;
+  }
+</style>
+
+{% endblock %} {% block scripts %}
+<!-- Toast container -->
+<div
+  id="toastHost"
+  class="toast-container position-fixed top-0 end-0 p-3"
+  style="z-index: 1080"
+></div>
+
+<!-- ตัวแปลงเวลาให้เป็น 24 ชั่วโมงเสมอ (รองรับทั้ง 12/24h) -->
+<script>
+  (function () {
+    // แปลงสตริงเวลาให้เป็น HH:MM (24h) — รองรับ "8", "8:5", "08:05", "8pm", "8:00 pm", "08:00 PM"
+    function to24h(str) {
+      if (str == null) return "";
+      let s = String(str).trim();
+      if (!s) return "";
+      // เอาช่องว่างกลางคำออก เช่น "08:00 PM" -> "08:00PM"
+      s = s.replace(/\s+/g, "");
+      // แยก am/pm ถ้ามี
+      let ampm = null;
+      const m = s.match(/(am|pm)$/i);
+      if (m) {
+        ampm = m[1].toUpperCase();
+        s = s.slice(0, -m[1].length);
+      }
+      // แยกชั่วโมง:นาที
+      let [hh, mm] = s.split(":");
+      if (mm === undefined) mm = "00";
+      let h = parseInt(hh, 10),
+        mmin = parseInt(mm, 10);
+      if (isNaN(h) || isNaN(mmin)) return "";
+
+      if (ampm) {
+        if (ampm === "AM") {
+          if (h === 12) h = 0;
+        } else if (ampm === "PM") {
+          if (h !== 12) h += 12;
+        }
+      }
+      h = Math.max(0, Math.min(23, h));
+      mmin = Math.max(0, Math.min(59, mmin));
+      return String(h).padStart(2, "0") + ":" + String(mmin).padStart(2, "0");
+    }
+
+    // บังคับ normalize ทุกครั้งที่ผู้ใช้แก้ไข หรือเมื่อสคริปต์อื่นไปเซ็ตค่า
+    const ids = ["ts_start", "ts_end", "edit_ts_start", "edit_ts_end"];
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+
+      const normalize = () => {
+        // ถ้าเป็น <input type="time"> ค่าปกติจะเป็น "HH:MM" อยู่แล้ว
+        // แต่กันกรณีบางเบราว์เซอร์/สคริปต์ใส่ "08:00 PM" เข้ามา
+        const val = el.value || el.getAttribute("value") || "";
+        const v24 = to24h(val);
+        if (v24) el.value = v24; // เซ็ตกลับเป็น 24h เสมอ
+      };
+
+      el.addEventListener("change", normalize);
+      el.addEventListener("blur", normalize);
+      // กันกรณี timeslot.js ตั้งค่าจากสตริงมี AM/PM
+      const mo = new MutationObserver(normalize);
+      mo.observe(el, { attributes: true, attributeFilter: ["value"] });
+
+      // normalize ครั้งแรกหลัง DOM พร้อม
+      requestAnimationFrame(normalize);
+    });
+  })();
 </script>
 
+<!-- สคริปต์หลัก -->
 <script src="{% static 'js/timeslot.js' %}"></script>
 {% endblock %}

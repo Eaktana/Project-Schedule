@@ -1,6 +1,5 @@
 from django.db import models
 
-
 class CourseSchedule(models.Model):
     teacher_name_course = models.CharField(max_length=100)
     subject_code_course = models.CharField(max_length=20)
@@ -13,7 +12,6 @@ class CourseSchedule(models.Model):
     
     def __str__(self):
         return f"{self.teacher_name_course} - {self.subject_name_course}"
-
 
 class PreSchedule(models.Model):
     teacher_name_pre = models.CharField(max_length=100)
@@ -32,7 +30,6 @@ class PreSchedule(models.Model):
     def __str__(self):
         return f"{self.subject_name_pre} - {self.day_pre}"
 
-
 class WeekActivity(models.Model):
     act_name_activity = models.CharField(max_length=100, blank=True, default="")
     day_activity = models.CharField(max_length=20, blank=True, default="")
@@ -42,7 +39,6 @@ class WeekActivity(models.Model):
 
     def __str__(self):
         return f"{self.act_name_activity} - {self.day_activity}"
-
 
 class ScheduleInfo(models.Model):
 
@@ -63,7 +59,6 @@ class ScheduleInfo(models.Model):
     class Meta:
         ordering = ["Day", "Hour", "Course_Code"]
 
-
 class Timedata(models.Model):
     day_of_week = models.CharField(max_length=20)
     start_time = models.CharField(max_length=20)
@@ -71,7 +66,6 @@ class Timedata(models.Model):
 
     def __str__(self):
         return f"{self.day_of_week}"
-
 
 class Subject(models.Model):
     code = models.CharField(max_length=20, unique=True)
@@ -83,7 +77,6 @@ class Subject(models.Model):
     def __str__(self):
         return f"{self.code} {self.name}"
 
-
 class Teacher(models.Model):
     name = models.CharField(max_length=100, unique=True)
 
@@ -93,7 +86,6 @@ class Teacher(models.Model):
     def __str__(self):
         return self.name
 
-
 class GroupType(models.Model):
     name = models.CharField(max_length=50, unique=True)
 
@@ -102,7 +94,6 @@ class GroupType(models.Model):
 
     def __str__(self):
         return self.name
-
 
 class StudentGroup(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -115,7 +106,6 @@ class StudentGroup(models.Model):
 
     def __str__(self):
         return self.name
-
 
 # DAY_CHOICES = [
 #     ("Mon", "จันทร์"),

@@ -1,60 +1,29 @@
-{% extends "add.html" %} {% load static %} {% block title %}ข้อมูลอาจารย์ผู้สอน
-| ระบบจัดตารางสอน{% endblock %} {% block content %}
-<!-- ✅ CSS -->
-<style>
-  /* ครอบ list scroll เก็บมุมล่าง */
-  .list-shell {
-    border-bottom-left-radius: 12px;
-    border-bottom-right-radius: 12px;
-    overflow: hidden;
-    background: transparent;
-  }
+{% extends "add.html" %}
+{% load static %}
 
-  /* ส่วนที่เลื่อนจริง */
-  .list-scroll {
-    max-height: 60vh; /* หรือ fix px เช่น 480px */
-    overflow-y: auto;
-    scrollbar-gutter: stable both-edges;
-    padding-right: 1rem;
-    margin-right: -0.5rem;
-    padding-bottom: 0.5rem;
-  }
+{% block title %}ข้อมูลอาจารย์ผู้สอน | ระบบจัดตารางสอน{% endblock %}
 
-  .table-rounded {
-    border-radius: 12px;
-    background-clip: padding-box;
-  }
-</style>
+{% block content %}
 
-<!-- ฟอร์มเพิ่มอาจารย์ -->
+<!-- ===== ฟอร์มเพิ่มอาจารย์ ===== -->
 <div class="card shadow-sm">
-  <div class="card-header"><h5 class="mb-0">ข้อมูลอาจารย์ผู้สอน</h5></div>
+  <div class="card-header">
+    <h5 class="mb-0 d-flex align-items-center">
+      <i class="bi bi-person-badge me-2"></i> ข้อมูลอาจารย์ผู้สอน
+    </h5>
+  </div>
+
   <div class="card-body p-4">
-    <form id="teacherForm" class="row g-3" method="post">
+    <form id="teacherForm" class="row g-3" method="post" novalidate>
+      {% csrf_token %}
       <div class="col-md-6">
         <label class="form-label" for="teacher_name">ชื่ออาจารย์</label>
-        <input
-          id="teacher_name"
-          type="text"
-          class="form-control"
-          placeholder="กรอกชื่ออาจารย์"
-          required
-        />
+        <input id="teacher_name" type="text" class="form-control" placeholder="กรอกชื่ออาจารย์" required />
       </div>
       <div class="col-12">
         <div class="d-flex justify-content-end mt-3 gap-2">
-          <button
-            id="btnCancelTeacherEdit"
-            type="button"
-            class="btn btn-outline-secondary d-none"
-          >
-            ยกเลิก
-          </button>
-          <button
-            id="btnAddTeacher"
-            type="button"
-            class="btn btn-primary-gradient px-4"
-          >
+          <button id="btnCancelTeacherEdit" type="button" class="btn btn-outline-secondary d-none">ยกเลิก</button>
+          <button id="btnAddTeacher" type="submit" class="btn-primary-gradient px-4">
             <i class="bi bi-plus-lg me-2"></i><span>เพิ่มข้อมูล</span>
           </button>
         </div>
@@ -63,27 +32,23 @@
   </div>
 </div>
 
-<!-- รายการอาจารย์ -->
+<!-- ===== รายการอาจารย์ ===== -->
 <div class="card shadow-sm mt-4">
   <div class="card-header d-flex align-items-center">
     <i class="bi bi-table me-2"></i>
     <h5 class="mb-0">รายการอาจารย์ผู้สอน</h5>
   </div>
 
-  <!-- ปุ่มลบทั้งหมด (อยู่นอกกล่อง scroll) -->
+  <!-- ปุ่มลบทั้งหมด -->
   <div class="px-4 py-3 border-bottom">
     <div class="d-flex justify-content-end">
-      <button
-        id="btnDeleteAllTeacher"
-        class="btn-danger-gradient btn-sm px-3"
-        type="button"
-      >
+      <button id="btnDeleteAllTeacher" class="btn-danger-gradient btn-sm px-3 text-nowrap" type="button">
         <i class="bi bi-trash3 me-1"></i>ลบทั้งหมด
       </button>
     </div>
   </div>
 
-  <!-- ส่วนที่เลื่อนเฉพาะรายการ -->
+  <!-- กล่องสกรอล -->
   <div class="card-body p-0">
     <div class="list-shell">
       <div class="list-scroll p-4">
@@ -96,40 +61,7 @@
               </tr>
             </thead>
             <tbody id="teacherTableBody">
-              {% for teacher in teachers %}
-              <tr data-id="{{ teacher.id }}">
-                <td>{{ teacher.name }}</td>
-                <td class="d-flex gap-2 justify-content-center">
-                  <!-- แก้ไข -->
-                  <button
-                    type="button"
-                    class="btn-warning-gradient btn-edit"
-                    data-id="{{ teacher.id }}"
-                    data-name="{{ teacher.name }}"
-                    onclick="editTeacher(this)"
-                    title="แก้ไข"
-                  >
-                    <i class="bi bi-pencil-square me-1"></i><span>แก้ไข</span>
-                  </button>
-
-                  <!-- ลบ -->
-                  <button
-                    type="button"
-                    class="btn-danger-gradient"
-                    onclick="deleteTeacher(this)"
-                    title="ลบ"
-                  >
-                    <i class="bi bi-trash3 me-1"></i><span>ลบ</span>
-                  </button>
-                </td>
-              </tr>
-              {% empty %}
-              <tr class="empty-row">
-                <td colspan="2" class="text-center text-muted">
-                  ไม่มีข้อมูลอาจารย์ผู้สอน
-                </td>
-              </tr>
-              {% endfor %}
+              <!-- teacher.js จะเติมรายการจาก /api/teacher/list/ -->
             </tbody>
           </table>
         </div>
@@ -138,59 +70,83 @@
   </div>
 </div>
 
-<!-- Edit Teacher Modal -->
+<!-- ===== Modal: แก้ไขอาจารย์ ===== -->
 <div class="modal fade" id="editTeacherModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border-0" style="border-radius: 16px">
-      <div
-        class="modal-header"
-        style="
-          background: #5b2be0;
-          color: #fff;
-          border-top-left-radius: 16px;
-          border-top-right-radius: 16px;
-        "
-      >
+    <div class="modal-content border-0" style="border-radius:16px">
+      <div class="modal-header" style="background:#5b2be0;color:#fff;border-top-left-radius:16px;border-top-right-radius:16px">
         <h5 class="modal-title">แก้ไขข้อมูลอาจารย์</h5>
-        <button
-          type="button"
-          class="btn-close btn-close-white"
-          data-bs-dismiss="modal"
-          aria-label="Close"
-        ></button>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="edit_teacher_id" />
         <div class="mb-3">
           <label for="edit_teacher_name" class="form-label">ชื่ออาจารย์</label>
-          <input
-            type="text"
-            class="form-control"
-            id="edit_teacher_name"
-            placeholder="กรอกชื่ออาจารย์"
-          />
+          <input type="text" class="form-control" id="edit_teacher_name" placeholder="กรอกชื่ออาจารย์" />
         </div>
         <div class="text-end">
-          <button
-            type="button"
-            class="btn btn-outline-secondary me-2"
-            data-bs-dismiss="modal"
-          >
-            ยกเลิก
-          </button>
-          <button
-            type="button"
-            class="btn btn-primary-gradient"
-            id="btnSaveTeacher"
-          >
-            บันทึก
-          </button>
+          <button type="button" class="btn btn-outline-secondary me-2" data-bs-dismiss="modal">ยกเลิก</button>
+          <button type="button" class="btn btn-primary-gradient" id="btnSaveTeacher">บันทึก</button>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-{% endblock %} {% block scripts %}
-<script src="{% static 'js/teacher.js' %}"></script>
+<!-- ===== Modal: ยืนยันลบทั้งหมด ===== -->
+<div class="modal fade" id="confirmDeleteAllTeacherModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0" style="border-radius:16px">
+      <div class="modal-header bg-danger text-white" style="border-top-left-radius:16px;border-top-right-radius:16px">
+        <h5 class="modal-title">ยืนยันการลบ</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">คุณต้องการลบ <span class="fw-bold">ข้อมูลอาจารย์ทั้งหมด</span> ใช่หรือไม่?</p>
+        <small class="text-muted">การลบนี้ไม่สามารถย้อนกลับได้</small>
+      </div>
+      <div class="modal-footer" style="flex-wrap:nowrap">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn btn-danger-gradient text-nowrap px-3" style="flex: 0 0 100px" id="btnConfirmDeleteAllTeacher">ลบทั้งหมด</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: ยืนยันลบ 'รายตัว' ===== -->
+<div class="modal fade" id="confirmDeleteTeacherModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0" style="border-radius:16px">
+      <div class="modal-header bg-danger text-white" style="border-top-left-radius:16px;border-top-right-radius:16px">
+        <h5 class="modal-title">ยืนยันการลบ</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1">ต้องการลบอาจารย์ <span class="fw-bold" id="del_teacher_name">—</span> ใช่หรือไม่?</p>
+        <small class="text-muted">การลบนี้ไม่สามารถย้อนกลับได้</small>
+      </div>
+      <div class="modal-footer" style="flex-wrap:nowrap">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn btn-danger-gradient text-nowrap px-3" id="btnConfirmDeleteTeacher">ลบ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CSS เสริมสำหรับกล่องสกรอล ===== -->
+<style>
+  .list-shell { border-bottom-left-radius:12px; border-bottom-right-radius:12px; overflow:hidden; background:transparent; }
+  .list-scroll { max-height:60vh; overflow-y:auto; scrollbar-gutter:stable both-edges; padding-right:1rem; margin-right:-0.5rem; padding-bottom:.5rem; }
+  .table-rounded { border-radius:12px; background-clip:padding-box; }
+  /* Toast ให้โค้งเท่าธีม */
+  #toastHost .toast{ border-radius:12px !important; overflow:hidden; }
+  #toastHost .toast-header{ border-top-left-radius:12px; border-top-right-radius:12px; }
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+  <!-- Toast container -->
+  <div id="toastHost" class="toast-container position-fixed top-0 end-0 p-3" style="z-index:1080"></div>
+  <script src="{% static 'js/teacher.js' %}"></script>
 {% endblock %}

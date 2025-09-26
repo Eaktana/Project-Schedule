@@ -1,7 +1,7 @@
 {% extends "add.html" %} {% load static %} {% block title %}ข้อมูลรายวิชา |
 ระบบจัดตารางสอน{% endblock title %} {% block content %}
 
-<!-- ฟอร์มเพิ่มรายวิชา -->
+<!-- ===== ฟอร์มเพิ่มรายวิชา ===== -->
 <div class="card shadow-sm">
   <div class="card-header">
     <h5 class="mb-0 d-flex align-items-center">
@@ -10,7 +10,7 @@
   </div>
 
   <div class="card-body p-4">
-    <form id="subjectForm" class="row g-3" method="post">
+    <form id="subjectForm" class="row g-3" method="post" novalidate>
       {% csrf_token %}
       <div class="col-md-4">
         <label class="form-label" for="subject_code">รหัสวิชา</label>
@@ -54,19 +54,19 @@
   </div>
 </div>
 
-<!-- รายการรายวิชา -->
+<!-- ===== รายการรายวิชา ===== -->
 <div class="card shadow-sm mt-4">
   <div class="card-header d-flex align-items-center">
     <i class="bi bi-table me-2"></i>
     <h5 class="mb-0">รายการรายวิชา</h5>
   </div>
 
-  <!-- ปุ่มลบทั้งหมด (อยู่นอกกล่องสกรอล) -->
+  <!-- ปุ่มลบทั้งหมด -->
   <div class="px-4 py-3 border-bottom">
     <div class="d-flex justify-content-end">
       <button
         id="btnDeleteAllSubject"
-        class="btn-danger-gradient btn-sm px-3"
+        class="btn-danger-gradient btn-sm px-3 text-nowrap"
         type="button"
       >
         <i class="bi bi-trash3 me-1"></i>ลบทั้งหมด
@@ -74,7 +74,7 @@
     </div>
   </div>
 
-  <!-- กล่องสกรอล (ขอบล่างไม่โดนตัด) -->
+  <!-- กล่องสกรอล -->
   <div class="card-body p-0">
     <div class="list-shell">
       <div class="list-scroll p-4">
@@ -88,43 +88,7 @@
               </tr>
             </thead>
             <tbody id="subjectTableBody">
-              {% for subject in subjects %}
-              <tr data-id="{{ subject.id }}">
-                <td class="fw-semibold text-center">
-                  {{ subject.subject_code }}
-                </td>
-                <td>{{ subject.subject_name }}</td>
-                <td class="d-flex gap-2 justify-content-center">
-                  <!-- แก้ไข -->
-                  <button
-                    type="button"
-                    class="btn-warning-gradient btn-edit"
-                    data-id="{{ teacher.id }}"
-                    data-name="{{ teacher.name }}"
-                    onclick="editTeacher(this)"
-                    title="แก้ไข"
-                  >
-                    <i class="bi bi-pencil-square me-1"></i><span>แก้ไข</span>
-                  </button>
-
-                  <!-- ลบ -->
-                  <button
-                    type="button"
-                    class="btn-danger-gradient"
-                    onclick="deleteTeacher(this)"
-                    title="ลบ"
-                  >
-                    <i class="bi bi-trash3 me-1"></i><span>ลบ</span>
-                  </button>
-                </td>
-              </tr>
-              {% empty %}
-              <tr class="empty-row">
-                <td colspan="3" class="text-center text-muted">
-                  ไม่มีข้อมูลรายวิชา
-                </td>
-              </tr>
-              {% endfor %}
+              <!-- subject.js จะเติมรายการจาก /api/subjects/ -->
             </tbody>
           </table>
         </div>
@@ -133,7 +97,7 @@
   </div>
 </div>
 
-<!-- Modal แก้ไขรายวิชา -->
+<!-- ===== Modal: แก้ไขรายวิชา ===== -->
 <div class="modal fade" id="editSubjectModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content border-0" style="border-radius: 16px">
@@ -195,7 +159,81 @@
   </div>
 </div>
 
-<!-- CSS สำหรับกล่องสกรอล -->
+<!-- ===== Modal: ยืนยันลบทั้งหมด ===== -->
+<div
+  class="modal fade"
+  id="confirmDeleteAllModal"
+  tabindex="-1"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0" style="border-radius: 16px">
+      <div
+        class="modal-header bg-danger text-white"
+        style="border-top-left-radius: 16px; border-top-right-radius: 16px"
+      >
+        <h5 class="modal-title">ยืนยันการลบ</h5>
+        <button
+          type="button"
+          class="btn-close btn-close-white"
+          data-bs-dismiss="modal"
+          aria-label="Close"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">
+          คุณต้องการลบ
+          <span class="fw-bold">ข้อมูลรายวิชาทั้งหมด</span> ใช่หรือไม่?
+        </p>
+        <small class="text-muted">การลบนี้ไม่สามารถย้อนกลับได้</small>
+      </div>
+      <div class="modal-footer" style="flex-wrap: nowrap">
+        <button
+          type="button"
+          class="btn btn-outline-secondary"
+          data-bs-dismiss="modal"
+        >
+          ยกเลิก
+        </button>
+        <button
+          type="button"
+          class="btn btn-danger-gradient text-nowrap px-3 "
+          style="flex: 0 0 100px"
+          id="btnConfirmDeleteAll"
+        >
+          ลบทั้งหมด
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: ยืนยันลบ 'รายตัว' ===== -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0" style="border-radius:16px;">
+      <div class="modal-header bg-danger text-white" style="border-top-left-radius:16px;border-top-right-radius:16px;">
+        <h5 class="modal-title">ยืนยันการลบ</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1">
+          คุณต้องการลบรายการวิชา
+          <span class="fw-bold" id="del_item_code">—</span>
+          (<span id="del_item_name">—</span>) ใช่หรือไม่?
+        </p>
+        <small class="text-muted">การลบนี้ไม่สามารถย้อนกลับได้</small>
+      </div>
+      <div class="modal-footer" style="flex-wrap: nowrap">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn btn-danger-gradient text-nowrap px-3" id="btnConfirmDelete">ลบ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ===== CSS เสริมสำหรับกล่องสกรอล ===== -->
 <style>
   .list-shell {
     border-bottom-left-radius: 12px;
@@ -204,7 +242,7 @@
     background: transparent;
   }
   .list-scroll {
-    max-height: 60vh; /* ปรับตามชอบ หรือ 480px */
+    max-height: 60vh;
     overflow-y: auto;
     scrollbar-gutter: stable both-edges;
     padding-right: 1rem;
@@ -218,5 +256,11 @@
 </style>
 
 {% endblock content %} {% block scripts %}
+<!-- Toast container สำหรับแจ้งเตือนตามธีม -->
+<div
+  id="toastHost"
+  class="toast-container position-fixed top-0 end-0 p-3"
+  style="z-index: 1080"
+></div>
 <script src="{% static 'js/subject.js' %}"></script>
 {% endblock scripts %}
