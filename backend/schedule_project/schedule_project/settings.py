@@ -25,9 +25,15 @@ SECRET_KEY = 'django-insecure-r*muc@%*zckokvla*-nn-srq^*18w@jam=bzwsz&f(me5dox)6
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    "103.216.158.194",  # ไม่มีพอร์ต (Django ไม่ใส่พอร์ตในรายการนี้)
+    "localhost",
+    "127.0.0.1",
+]
 
-
+CSRF_TRUSTED_ORIGINS = [
+    "http://103.216.158.194:50000",
+]
 # Application definition
 
 INSTALLED_APPS = [
