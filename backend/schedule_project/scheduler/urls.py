@@ -186,4 +186,5 @@ urlpatterns = [
     path(
         "api/timeslot/update/<int:pk>/", views.timeslot_update, name="timeslot_update"
     ),
+    
 ]

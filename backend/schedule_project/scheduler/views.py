@@ -34,6 +34,7 @@ from .models import (
     Subject,
     Teacher,
     DAY_CHOICES,
+    GeneratedSchedule
 )
 
 logger = logging.getLogger(__name__)
@@ -72,13 +73,15 @@ def home(request):
     """หน้าแรกของระบบ"""
     context = {
         "title": "ระบบจัดการสอน",
-        "total_Course": CourseSchedule.objects.values("teacher_name_course")
-        .distinct()
-        .count(),
-        "total_subjects": CourseSchedule.objects.values("subject_code_course")
-        .distinct()
-        .count(),
+        "total_teachers": CourseSchedule.objects.values("teacher_name_course").distinct().count(),
+        "total_subjects": CourseSchedule.objects.values("subject_code_course").distinct().count(),
+        "total_rooms": Room.objects.count(),
         "total_activity": WeekActivity.objects.count(),
+        "generated_schedules": (
+            GeneratedSchedule.objects
+            .all()
+            .order_by("day_of_week", "start_time", "subject_code")
+        ),
     }
     return render(request, "index.html", context)
 

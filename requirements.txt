@@ -1,0 +1,8 @@
+Django>=5.0
+djangorestframework
+pandas
+tabulate
+mysqlclient
+numpy
+gunicorn
+whitenoise

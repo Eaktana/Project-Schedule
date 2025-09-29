@@ -446,7 +446,6 @@ def initialize_population(
             if candidate.empty:
                 continue
 
-            # --- filter ตาม room_type ---
             required_room_type = _norm(room_type)
             if "room_type" not in candidate.columns:
                 continue
@@ -594,7 +593,7 @@ def is_conflict(existing_rows, g):
     t = (g["teacher"], g["day_of_week"], g["start_time"], g["stop_time"])
     s = (g["student_group"], g["day_of_week"], g["start_time"], g["stop_time"])
     r = (g["room"], g["day_of_week"], g["start_time"], g["stop_time"])
-    # สแกนแบบ set จะเร็วกว่า แต่ existing_rows เป็น list
+
     for x in existing_rows:
         if (x["teacher"], x["day_of_week"], x["start_time"], x["stop_time"]) == t:
             return True
@@ -674,14 +673,17 @@ def evaluate_individual(individual, allow_set, room_type_of=None):
             penalty += 10
 
         t = (g["teacher"], g["day_of_week"], g["start_time"], g["stop_time"])
-        s = (g["student_group"], g["day_of_week"], g["start_time"], g["stop_time"])
-        r = (g["room"], g["day_of_week"], g["start_time"], g["stop_time"])
         if t in seen_t:
             penalty += 50
+
+        s = (g["student_group"], g["day_of_week"], g["start_time"], g["stop_time"])
         if s in seen_s:
             penalty += 50
+
+        r = (g["room"], g["day_of_week"], g["start_time"], g["stop_time"])
         if r in seen_r:
             penalty += 50
+
         seen_t.add(t)
         seen_s.add(s)
         seen_r.add(r)
@@ -698,7 +700,6 @@ def evaluate_individual(individual, allow_set, room_type_of=None):
         if (gtype is None) or (key not in allow_set):
             penalty += 100
 
-        # room_type check (optional)
         if room_type_of is not None:
             req = g.get("room_type_course", None)
             actual = room_type_of.get(g["room"])
