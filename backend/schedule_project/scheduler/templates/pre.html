@@ -15,7 +15,6 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
     />
-
     <!-- App CSS -->
     <link rel="stylesheet" href="{% static 'css/pre.css' %}" />
   </head>
@@ -183,14 +182,15 @@
                 </div>
 
                 <!-- กลุ่มเรียน -->
-                <div class="col-12 col-md-6 col-lg-4">
-                  <label for="section_pre" class="form-label">กลุ่มเรียน</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    id="section_pre"
-                    placeholder="เช่น sec1"
-                  />
+                <div class="col-md-4">
+                  <label for="pre_section_num" class="form-label">กลุ่มเรียน</label>
+                  <div class="input-group">
+                    <span class="input-group-text rounded-start-3">sec</span>
+                    <input type="number"
+                          class="form-control rounded-end-3"
+                          id="pre_section_num"
+                          min="0" step="1" placeholder="เช่น 1">
+                  </div>
                 </div>
 
                 <!-- วัน -->
@@ -323,19 +323,17 @@
                       <td>{{ pre.start_time_pre|time:"H:i" }}</td>
                       <td>{{ pre.stop_time_pre|time:"H:i" }}</td>
                       <td>{{ pre.room_name_pre }}</td>
-                      <td>
-                        <button
-                          class="btn btn-warning btn-sm"
-                          onclick="openEditModal(this)"
-                        >
-                          แก้ไข
-                        </button>
-                        <button
-                          class="btn btn-danger btn-sm"
-                          onclick="confirmDelete(this)"
-                        >
-                          ลบ
-                        </button>
+                      <td class="text-nowrap">
+                        <div class="d-inline-flex gap-2 align-items-center">
+                          <button class="btn btn-warning-gradient btn-sm d-inline-flex align-items-center"
+                                  onclick="openEditModal(this)" title="แก้ไข">
+                            <i class="bi bi-pencil me-1"></i>
+                          </button>
+                          <button class="btn btn-danger-gradient btn-sm d-inline-flex align-items-center"
+                                  onclick="confirmDelete(this)" title="ลบ">
+                            <i class="bi bi-trash me-1"></i> 
+                          </button>
+                        </div>
                       </td>
                     </tr>
                     {% empty %}
@@ -359,108 +357,140 @@
       </div>
     </main>
 
-    <!-- Edit Modal -->
     <div class="modal fade" id="editModal" tabindex="-1">
-      <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-          <div class="modal-header bg-primary text-white">
-            <h5 class="modal-title">แก้ไขข้อมูลวิชาล่วงหน้า</h5>
-            <button
-              type="button"
-              class="btn-close btn-close-white"
-              data-bs-dismiss="modal"
-            ></button>
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="border-radius:16px; border:none; overflow:hidden;">
+          <div class="modal-header" style="background:linear-gradient(135deg,#4f46e5,#7c3aed); color:#fff;">
+            <h5 class="modal-title">
+              <i class="bi bi-pencil-square me-2"></i>แก้ไขข้อมูลวิชาล่วงหน้า
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
+
           <div class="modal-body p-4">
             <div class="row g-3">
               <div class="col-md-6">
-                <label for="editteacher_name_pre" class="form-label"
-                  >อาจารย์</label
-                >
+                <label for="editteacher_name_pre" class="form-label">อาจารย์</label>
                 <select id="editteacher_name_pre" class="form-select"></select>
               </div>
+
               <div class="col-md-6">
-                <label for="editsubject_code_pre" class="form-label"
-                  >รหัสวิชา</label
-                >
+                <label for="editsubject_code_pre" class="form-label">รหัสวิชา</label>
                 <select id="editsubject_code_pre" class="form-select"></select>
               </div>
-              <div class="col-md-6">
-                <label for="editsubject_name_pre" class="form-label"
-                  >ชื่อวิชา</label
-                >
+
+              <div class="col-md-12">
+                <label for="editsubject_name_pre" class="form-label">ชื่อวิชา</label>
                 <select id="editsubject_name_pre" class="form-select"></select>
               </div>
+
               <div class="col-md-6">
-                <label for="editsubject_type_pre" class="form-label"
-                  >ทฤษฎี/ปฏิบัติ</label
-                >
+                <label for="editsubject_type_pre" class="form-label">ทฤษฎี/ปฏิบัติ</label>
                 <select id="editsubject_type_pre" class="form-select">
                   <option value="">เลือกประเภท</option>
                   <option value="ภาคทฤษฎี">ภาคทฤษฎี</option>
                   <option value="ภาคปฏิบัติ">ภาคปฏิบัติ</option>
                 </select>
               </div>
+
               <div class="col-md-6">
-                <label for="edittype_pre" class="form-label"
-                  >ประเภทรายวิชา</label
-                >
+                <label for="edittype_pre" class="form-label">ประเภทรายวิชา</label>
                 <select id="edittype_pre" class="form-select"></select>
               </div>
+
               <div class="col-md-6">
-                <label for="editstudent_group_pre" class="form-label"
-                  >ชื่อกลุ่มนักศึกษา</label
-                >
+                <label for="editstudent_group_pre" class="form-label">ชื่อกลุ่มนักศึกษา</label>
                 <select id="editstudent_group_pre" class="form-select"></select>
               </div>
+
               <div class="col-md-6">
-                <label for="edithours_pre" class="form-label"
-                  >จำนวนชั่วโมง</label
-                >
-                <input type="number" id="edithours_pre" class="form-control" />
+                <label for="edithours_pre" class="form-label">จำนวนชั่วโมง</label>
+                <input type="number" id="edithours_pre" class="form-control" min="1" step="1">
               </div>
+
               <div class="col-md-6">
-                <label for="editsection_pre" class="form-label"
-                  >กลุ่มเรียน</label
-                >
-                <input type="text" id="editsection_pre" class="form-control" />
+                <label for="edit_pre_section_num" class="form-label">กลุ่มเรียน</label>
+                <div class="input-group">
+                  <span class="input-group-text rounded-start-3">sec</span>
+                  <input type="number" id="edit_pre_section_num" class="form-control rounded-end-3" min="0" step="1" placeholder="เช่น 1">
+                </div>
               </div>
+
               <div class="col-md-6">
                 <label for="editday_pre" class="form-label">วัน</label>
                 <select id="editday_pre" class="form-select"></select>
               </div>
+
               <div class="col-md-6">
-                <label for="editstart_time_pre" class="form-label"
-                  >เวลาเริ่ม</label
-                >
+                <label for="editstart_time_pre" class="form-label">เวลาเริ่ม</label>
                 <select id="editstart_time_pre" class="form-select">
                   <option value="">เลือกเวลาเริ่ม</option>
                 </select>
               </div>
+
               <div class="col-md-6">
-                <label for="editstop_time_pre" class="form-label"
-                  >เวลาสิ้นสุด</label
-                >
-                <select
-                  id="editstop_time_pre"
-                  class="form-select readonly-select"
-                >
+                <label for="editstop_time_pre" class="form-label">เวลาสิ้นสุด</label>
+                <select id="editstop_time_pre" class="form-select readonly-select">
                   <option value="">คำนวณอัตโนมัติ</option>
                 </select>
               </div>
+
               <div class="col-md-6">
-                <label for="editroom_name_pre" class="form-label"
-                  >ห้องเรียน</label
-                >
+                <label for="editroom_name_pre" class="form-label">ห้องเรียน</label>
                 <select id="editroom_name_pre" class="form-select"></select>
               </div>
             </div>
           </div>
-          <div class="modal-footer">
-            <button class="btn btn-secondary" data-bs-dismiss="modal">
-              ยกเลิก
+
+          <div class="modal-footer border-0 p-4">
+            <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">
+              <i class="bi bi-x-lg me-2"></i>ยกเลิก
             </button>
-            <button class="btn btn-primary" onclick="saveEdit()">บันทึก</button>
+            <button type="button" class="btn btn-primary-gradient" onclick="saveEdit()">
+              <i class="bi bi-check-lg me-2"></i>บันทึกการแก้ไข
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Toast host (แบบ course) -->
+    <div id="toastHost" class="toast-container position-fixed top-0 end-0 p-3"></div>
+
+    <!-- Confirm Delete (single) Modal -->
+    <div class="modal fade" id="confirmDeletePreModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 overflow-hidden">
+          <div class="modal-header border-0 bg-danger text-white">
+            <h5 class="modal-title"><i class="bi bi-trash3 me-2"></i>ยืนยันการลบ</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            ต้องการลบ <span class="fw-semibold" id="del_pre_name">-</span> ใช่ไหม?
+          </div>
+          <div class="modal-footer border-0">
+            <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">ยกเลิก</button>
+            <button type="button" class="btn btn-danger" id="btnConfirmDeletePre">ลบ</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirm Delete All Modal -->
+    <div class="modal fade" id="confirmDeleteAllPreModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 overflow-hidden">
+          <div class="modal-header border-0 bg-danger text-white">
+            <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2"></i>ลบวิชาล่วงหน้าทั้งหมด</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            ต้องการลบ <span class="fw-semibold">วิชาล่วงหน้าทั้งหมด</span> ใช่ไหม? การกระทำนี้ไม่สามารถย้อนกลับได้
+          </div>
+          <div class="modal-footer border-0">
+            <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">ยกเลิก</button>
+            <button type="button" class="btn btn-danger" id="btnConfirmDeleteAllPre">ลบทั้งหมด</button>
           </div>
         </div>
       </div>

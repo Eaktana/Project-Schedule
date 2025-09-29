@@ -20,9 +20,6 @@
   <link rel="stylesheet" href="{% static 'css/course.css' %}">
 </head>
 <body>
-  <!-- Notification Container -->
-  <div class="notification-container" id="notificationContainer"></div>
-
   <!-- Header -->
   <header class="bg-white border-bottom py-3">
     <div class="container-fluid" style="max-width: 1400px;">
@@ -132,7 +129,10 @@
               <!-- กลุ่มเรียน -->
               <div class="col-md-3">
                 <label for="section" class="form-label">กลุ่มเรียน</label>
-                <input type="text" class="form-control" id="section" placeholder="เช่น sec1">
+                <div class="input-group">
+                  <span class="input-group-text">sec</span>
+                  <input type="number" class="form-control" id="section_num" placeholder="เช่น 1" min="0" step="1">
+                </div>
               </div>
               <!-- ชื่อกลุ่มนักศึกษา -->
               <div class="col-md-3">
@@ -237,7 +237,7 @@
 
   <!-- Edit Modal -->
   <div class="modal fade" id="editModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
       <div class="modal-content" style="border-radius: 16px; border: none;">
         <div class="modal-header" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; border-radius: 16px 16px 0 0;">
           <h5 class="modal-title">
@@ -274,7 +274,10 @@
             </div>
             <div class="col-md-6">
               <label for="editSection" class="form-label">กลุ่มเรียน</label>
-              <input type="text" class="form-control" id="editSection" placeholder="เช่น sec1">
+              <div class="input-group">
+                <span class="input-group-text">sec</span>
+                <input type="number" class="form-control" id="editSectionNum" min="0" step="1">
+              </div>
             </div>
             <div class="col-md-6">
               <label for="editStudentGroupSelect" class="form-label">ชื่อกลุ่มนักศึกษา</label>
@@ -299,6 +302,46 @@
           <button type="button" class="btn btn-primary-gradient" onclick="saveEdit()">
             <i class="bi bi-check-lg me-2"></i>บันทึกการแก้ไข
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastHost" class="toast-container position-fixed top-0 end-0 p-3"></div>
+
+  <!-- Confirm Delete (single) Modal -->
+  <div class="modal fade" id="confirmDeleteCourseModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-4 overflow-hidden">
+        <div class="modal-header border-0 bg-danger text-white">
+          <h5 class="modal-title"><i class="bi bi-trash3 me-2"></i>ยืนยันการลบ</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          ต้องการลบรายวิชา: <span class="fw-semibold" id="del_course_name">-</span> ใช่ไหม?
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">ยกเลิก</button>
+          <button type="button" class="btn btn-danger" id="btnConfirmDeleteCourse">ลบ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Delete All Modal -->
+  <div class="modal fade" id="confirmDeleteAllCourseModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-4 overflow-hidden">
+        <div class="modal-header border-0 bg-danger text-white">
+          <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2"></i>ลบรายวิชาทั้งหมด</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          ต้องการลบ <span class="fw-semibold">รายวิชาทั้งหมด</span> ใช่ไหม? การกระทำนี้ไม่สามารถย้อนกลับได้
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">ยกเลิก</button>
+          <button type="button" class="btn btn-danger" id="btnConfirmDeleteAllCourse">ลบทั้งหมด</button>
         </div>
       </div>
     </div>

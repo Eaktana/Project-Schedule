@@ -2,25 +2,31 @@
 {% load static %}
 {% block title %}ข้อมูลห้องเรียน | ระบบจัดตารางสอน{% endblock %}
 {% block content %}
+
+<!-- ===== ฟอร์มเพิ่มห้อง ===== -->
 <div class="card shadow-sm">
-  <div class="card-header"><h5 class="mb-0">ข้อมูลห้องเรียน</h5></div>
+  <div class="card-header">
+    <h5 class="mb-0 d-flex align-items-center">
+      <i class="bi bi-door-open me-2"></i> ข้อมูลห้องเรียน
+    </h5>
+  </div>
   <div class="card-body p-4">
-    <form id="roomForm" class="row g-3">
-      {% csrf_token %} 
+    <form id="roomForm" class="row g-3" method="post" novalidate>
+      {% csrf_token %}
       <div class="col-md-6">
         <label class="form-label" for="room_name">ชื่อห้องเรียน</label>
-        <input id="room_name" type="text" class="form-control" placeholder="เช่น ทค1-101">
+        <input id="room_name" type="text" class="form-control" placeholder="เช่น ทค1-101" required>
       </div>
       <div class="col-md-4">
-        <label for="room_type_select" class="form-label">ประเภทห้อง</label>
-        <select class="form-select" id="room_type_select">
+        <label class="form-label" for="room_type_select">ประเภทห้อง</label>
+        <select id="room_type_select" class="form-select" required>
           <option value="">-- เลือกประเภทห้อง --</option>
         </select>
       </div>
       <div class="col-12">
         <div class="d-flex justify-content-end mt-3 gap-2">
           <button id="btnCancelRoomEdit" type="button" class="btn btn-outline-secondary d-none">ยกเลิก</button>
-          <button id="btnAddRoom" type="button" class="btn btn-primary-gradient px-4">
+          <button id="btnAddRoom" type="submit" class="btn-primary-gradient px-4">
             <i class="bi bi-plus-lg me-2"></i><span>เพิ่มข้อมูล</span>
           </button>
         </div>
@@ -29,35 +35,125 @@
   </div>
 </div>
 
+<!-- ===== รายการห้อง ===== -->
 <div class="card shadow-sm mt-4">
   <div class="card-header d-flex align-items-center">
     <i class="bi bi-table me-2"></i><h5 class="mb-0">รายการห้องเรียน</h5>
   </div>
-  <div class="card-body p-4">
-    <div class="table-responsive table-rounded">
-      <table class="table align-middle mb-0">
-        <thead>
-          <tr>
-            <th>ชื่อห้องเรียน</th>
-            <th>ประเภทห้อง</th>
-            <th>จัดการ</th>
-          </tr>
-        </thead>
-        <tbody id="roomTableBody">
-          <tr class="empty-row">
-            <td colspan="3" class="text-center text-muted">ไม่มีข้อมูลห้องเรียน</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="d-flex justify-content-end mt-3">
-      <button id="btnDeleteAllRoom" class="btn-danger-gradient">
-        <i class="bi bi-trash3 me-2"></i>ลบทั้งหมด
+
+  <!-- ปุ่มลบทั้งหมด -->
+  <div class="px-4 py-3 border-bottom">
+    <div class="d-flex justify-content-end">
+      <button id="btnDeleteAllRoom" class="btn-danger-gradient btn-sm px-3 text-nowrap" type="button">
+        <i class="bi bi-trash3 me-1"></i>ลบทั้งหมด
       </button>
     </div>
   </div>
+
+  <!-- กล่องสกรอล -->
+  <div class="card-body p-0">
+    <div class="list-shell">
+      <div class="list-scroll p-4">
+        <div class="table-responsive table-rounded">
+          <table class="table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>ชื่อห้องเรียน</th>
+                <th>ประเภทห้อง</th>
+                <th class="text-center" style="width: 200px">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="roomTableBody">
+              <tr class="empty-row">
+                <td colspan="3" class="text-center text-muted">ไม่มีข้อมูลห้องเรียน</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+
+<!-- ===== Modal: แก้ไขห้อง ===== -->
+<div class="modal fade" id="editRoomModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0" style="border-radius:16px;">
+      <div class="modal-header" style="background:#5b2be0;color:#fff;border-top-left-radius:16px;border-top-right-radius:16px;">
+        <h5 class="modal-title">แก้ไขห้องเรียน</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit_room_id" />
+        <div class="mb-3">
+          <label class="form-label" for="edit_room_name">ชื่อห้องเรียน</label>
+          <input id="edit_room_name" type="text" class="form-control" placeholder="เช่น ทค1-101">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="edit_room_type">ประเภทห้อง</label>
+          <select id="edit_room_type" class="form-select">
+            <option value="">-- เลือกประเภทห้อง --</option>
+          </select>
+        </div>
+        <div class="text-end">
+          <button type="button" class="btn btn-outline-secondary me-2" data-bs-dismiss="modal">ยกเลิก</button>
+          <button type="button" class="btn btn-primary-gradient" id="btnSaveRoom">บันทึก</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: ยืนยันลบทั้งหมด ===== -->
+<div class="modal fade" id="confirmDeleteAllModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0" style="border-radius:16px;">
+      <div class="modal-header bg-danger text-white" style="border-top-left-radius:16px;border-top-right-radius:16px;">
+        <h5 class="modal-title">ยืนยันการลบ</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">คุณต้องการลบ <span class="fw-bold">ห้องเรียนทั้งหมด</span> ใช่หรือไม่?</p>
+        <small class="text-muted">การลบนี้ไม่สามารถย้อนกลับได้</small>
+      </div>
+      <div class="modal-footer" style="flex-wrap:nowrap">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn btn-danger-gradient text-nowrap px-3" id="btnConfirmDeleteAll">ลบทั้งหมด</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: ยืนยันลบรายตัว ===== -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0" style="border-radius:16px;">
+      <div class="modal-header bg-danger text-white" style="border-top-left-radius:16px;border-top-right-radius:16px;">
+        <h5 class="modal-title">ยืนยันการลบ</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1">คุณต้องการลบห้อง <span id="del_room_name" class="fw-bold">—</span> ใช่หรือไม่?</p>
+        <small class="text-muted">การลบนี้ไม่สามารถย้อนกลับได้</small>
+      </div>
+      <div class="modal-footer" style="flex-wrap:nowrap">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn btn-danger-gradient text-nowrap px-3" id="btnConfirmDelete">ลบ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CSS เสริมกล่องสกรอล ===== -->
+<style>
+  .list-shell{border-bottom-left-radius:12px;border-bottom-right-radius:12px;overflow:hidden;background:transparent;}
+  .list-scroll{max-height:60vh;overflow-y:auto;scrollbar-gutter:stable both-edges;padding-right:1rem;margin-right:-0.5rem;padding-bottom:0.5rem;}
+  .table-rounded{border-radius:12px;background-clip:padding-box;}
+</style>
+
 {% endblock %}
+
 {% block scripts %}
-<script src="{% static 'js/room.js' %}?v=5"></script>
+<div id="toastHost" class="toast-container position-fixed top-0 end-0 p-3" style="z-index:1080"></div>
+<script src="{% static 'js/room.js' %}?v=6"></script>
 {% endblock %}

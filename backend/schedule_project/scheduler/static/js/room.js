@@ -1,226 +1,279 @@
 // /static/js/room.js
-document.addEventListener('DOMContentLoaded', () => {
-  /* ===================== CSRF ===================== */
+document.addEventListener("DOMContentLoaded", () => {
+  /* ===== CSRF ===== */
   const csrftoken = (() => {
     const m = document.cookie.match(/csrftoken=([^;]+)/);
-    return m ? decodeURIComponent(m[1]) : '';
+    return m ? decodeURIComponent(m[1]) : "";
   })();
 
-  /* ===================== Fetch Helpers ===================== */
-  async function apiGet(url) {
-    const r = await fetch(url);
-    const j = await r.json();
-    if (!r.ok || j.status !== 'success') throw new Error(j.message || `HTTP ${r.status}`);
-    return j;
-  }
-  async function apiPost(url, payload) {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
-      body: JSON.stringify(payload ?? {}),
-    });
-    const j = await r.json();
-    if (!r.ok || j.status !== 'success') throw new Error(j.message || `HTTP ${r.status}`);
-    return j;
-  }
-  async function apiDelete(url) {
-    const r = await fetch(url, { method: 'DELETE', headers: { 'X-CSRFToken': csrftoken } });
-    const j = await r.json();
-    if (!r.ok || j.status !== 'success') throw new Error(j.message || `HTTP ${r.status}`);
-    return j;
+  /* ===== Fetch helpers (รองรับ non-JSON/204) ===== */
+  const headersJson = () => ({ "Content-Type": "application/json", "X-CSRFToken": csrftoken, Accept: "application/json" });
+  async function ensureOk(res, fallback) {
+    const ct = res.headers.get("content-type") || "";
+    if (res.ok) {
+      if (res.status === 204 || !ct.includes("application/json")) return {};
+      try { return await res.json(); } catch { return {}; }
+    }
+    let msg = fallback || `HTTP ${res.status}`;
+    try {
+      if (ct.includes("application/json")) {
+        const j = await res.json();
+        msg = j.message || j.detail || msg;
+      } else { msg = (await res.text()) || msg; }
+    } catch {}
+    throw new Error(msg);
   }
 
-  /* ===================== DOM refs ===================== */
-  const $name    = document.getElementById('room_name');
-  const $type    = document.getElementById('room_type_select');
-  const $add     = document.getElementById('btnAddRoom');
-  const $cancel  = document.getElementById('btnCancelRoomEdit');
-  const $tbody   = document.getElementById('roomTableBody');
-  const $delAll  = document.getElementById('btnDeleteAllRoom');
+  /* ===== API endpoints (อ้างอิงตามโปรเจกต์เดิม) ===== */
+  const API = {
+    listTypes: "/api/roomtype/list/",
+    list:      "/api/room/list/",
+    add:       "/api/room/add/",
+    del:       (id) => `/api/room/delete/${id}/`,
+    delAll:    "/api/room/delete-all/",
+  };
 
-  /* ===================== State ===================== */
-  let editing = false;
-  let editingId = null;         // เก็บ id เฉพาะตอน "แก้ไข"
-  let roomsCache = [];          // เก็บรายการล่าสุดจาก /api/room/list/ เพื่อใช้ตอนกดแก้ไข
+  /* ===== Elements ===== */
+  const form = document.getElementById("roomForm");
+  const nameInput = document.getElementById("room_name");
+  const typeSelect = document.getElementById("room_type_select");
+  const btnSubmit = document.getElementById("btnAddRoom");
+  const btnCancel = document.getElementById("btnCancelRoomEdit");
+  const tbody = document.getElementById("roomTableBody");
+  const btnDeleteAll = document.getElementById("btnDeleteAllRoom");
+  const toastHost = document.getElementById("toastHost");
 
-  /* ===================== Load dropdown ประเภทห้อง ===================== */
+  // edit modal
+  const editEl = document.getElementById("editRoomModal");
+  const bsEdit = editEl ? new bootstrap.Modal(editEl) : null;
+  const editId = document.getElementById("edit_room_id");
+  const editName = document.getElementById("edit_room_name");
+  const editType = document.getElementById("edit_room_type");
+  const btnSave = document.getElementById("btnSaveRoom");
+
+  // delete-one modal
+  const delEl = document.getElementById("confirmDeleteModal");
+  const bsDel = delEl ? new bootstrap.Modal(delEl) : null;
+  const delRoomName = document.getElementById("del_room_name");
+  const btnConfirmDelete = document.getElementById("btnConfirmDelete");
+  let pendingDeleteId = null;
+
+  // delete-all modal
+  const delAllEl = document.getElementById("confirmDeleteAllModal");
+  const bsDelAll = delAllEl ? new bootstrap.Modal(delAllEl) : null;
+  const btnConfirmDeleteAll = document.getElementById("btnConfirmDeleteAll");
+
+  /* ===== Toast ===== */
+  function showToast(kind, title, message) {
+    if (!toastHost) { alert(message || title || ""); return; }
+    const map = { success:"bg-success text-white", warning:"bg-warning", danger:"bg-danger text-white", info:"bg-primary text-white" };
+    const cls = map[kind] || "bg-dark text-white";
+    const el = document.createElement("div");
+    el.className = "toast align-items-center border-0 shadow overflow-hidden";
+    el.style.borderRadius = "12px";
+    el.innerHTML = `
+      <div class="toast-header ${cls}">
+        <strong class="me-auto">${escapeHtml(title||"")}</strong>
+        <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="toast"></button>
+      </div>
+      <div class="toast-body">${escapeHtml(message||"")}</div>`;
+    toastHost.appendChild(el);
+    const t = new bootstrap.Toast(el, { delay: 2500 });
+    t.show();
+    el.addEventListener("hidden.bs.toast", () => el.remove());
+  }
+  const escapeHtml = (s) => String(s ?? "")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+
+  /* ===== State ===== */
+  let cache = []; // [{id,name,type_id,type_name}]
+
+  /* ===== Load room types (ฟอร์ม + modal edit) ===== */
   async function loadRoomTypes() {
-    try {
-      // GET /api/roomtype/list/
-      const { items } = await apiGet('/api/roomtype/list/'); /* endpoints ตาม urls.py */ /*:contentReference[oaicite:2]{index=2}*/
-      $type.innerHTML =
-        '<option value="">-- เลือกประเภทห้อง --</option>' +
-        items.map(x => `<option value="${x.id}">${x.name}</option>`).join('');
-    } catch (e) {
-      console.error(e);
-      $type.innerHTML = '<option value="">(โหลดประเภทห้องไม่สำเร็จ)</option>';
+    const res = await fetch(API.listTypes);
+    const data = await ensureOk(res, "โหลดประเภทห้องไม่สำเร็จ");
+    const list = Array.isArray(data.items) ? data.items : [];
+    typeSelect.innerHTML = `<option value="">-- เลือกประเภทห้อง --</option>` + list.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join("");
+    if (editType) {
+      editType.innerHTML = `<option value="">-- เลือกประเภทห้อง --</option>` + list.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join("");
     }
   }
 
-  /* ===================== วาดตารางห้อง ===================== */
-  async function loadRooms() {
-    try {
-      // GET /api/room/list/
-      const { items } = await apiGet('/api/room/list/');     /* endpoints ตาม urls.py */ /*:contentReference[oaicite:3]{index=3}*/
-      roomsCache = items || [];
-      $tbody.innerHTML = '';
-      if (!roomsCache.length) {
-        $tbody.innerHTML =
-          '<tr class="empty-row"><td colspan="3" class="text-center text-muted">ไม่มีข้อมูลห้องเรียน</td></tr>';
-        return;
-      }
-      for (const r of roomsCache) {
-        // คอลัมน์แรกเป็น "ชื่อห้องเรียน" ไม่ใช่ id
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${escapeHtml(r.name ?? '')}</td>
-          <td>${escapeHtml(r.type_name ?? '')}</td>
-          <td class="d-flex justify-content-center gap-2">
-            <button class="btn-warning-gradient" data-act="edit" data-id="${r.id}">แก้ไข</button>
-            <button class="btn-danger-gradient" data-act="del"  data-id="${r.id}">ลบ</button>
-          </td>`;
-        $tbody.appendChild(tr);
-      }
-    } catch (e) {
-      console.error(e);
-      $tbody.innerHTML =
-        '<tr><td colspan="3" class="text-danger text-center">โหลดรายการห้องไม่สำเร็จ</td></tr>';
+  /* ===== Render table ===== */
+  function render() {
+    if (!cache.length) {
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="3" class="text-center text-muted">ไม่มีข้อมูลห้องเรียน</td></tr>`;
+      return;
     }
+    const rows = [...cache]
+      .sort((a,b)=>Number(b.id)-Number(a.id)) // ใหม่สุดอยู่บน
+      .map(r => `
+      <tr data-id="${r.id}">
+        <td>${escapeHtml(r.name)}</td>
+        <td>${escapeHtml(r.type_name || r.room_type_name || "")}</td>
+        <td class="text-center">
+          <button class="btn-warning-gradient btn-sm me-2 btn-edit">แก้ไข</button>
+          <button class="btn-danger-gradient btn-sm btn-delete">ลบ</button>
+        </td>
+      </tr>
+    `).join("");
+    tbody.innerHTML = rows;
   }
 
-  /* ===================== เพิ่ม/บันทึก ===================== */
-  async function submitRoom() {
-    const nameVal = String($name.value || '').trim();
-    const typeVal = String($type.value || '').trim();
+  async function refresh() {
+    const res = await fetch(API.list);
+    const data = await ensureOk(res, "โหลดห้องเรียนไม่สำเร็จ");
+    cache = Array.isArray(data.items) ? data.items : [];
+    render();
+  }
 
-    if (!nameVal) { alert('กรอก "ชื่อห้องเรียน"'); return; }
-    if (!typeVal) { alert('เลือก "ประเภทห้อง"'); return; }
+  /* ===== Duplicate rules =====
+     DB บังคับ unique ที่ 'name' ดังนั้นต้องกันซ้ำจากชื่ออย่างเดียว
+  */
+  function isDupName(name, exceptId=null) {
+    const n = String(name).trim();
+    return cache.some(r => String(r.name).trim() === n && String(r.id) !== String(exceptId ?? ""));
+  }
 
-    // ============ เพิ่มใหม่ ============
-    // ไม่ส่ง id ให้ DB: ให้ DB/ORM สร้างอัตโนมัติ
-    const payload = { name: nameVal, type: Number(typeVal) };
+  /* ===== Create ===== */
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = (nameInput.value || "").trim();
+    const typeId = typeSelect.value;
 
-    // ============ แก้ไข ============
-    // ใช้ upsert เดิมของ backend: ส่ง id เฉพาะตอนแก้ไข (front-end ไม่แสดง id)
-    if (editing && editingId != null) {
-      payload.id = Number(editingId);
-    }
+    if (!name) return showToast("warning","ข้อมูลไม่ครบ","กรุณากรอกชื่อห้องเรียน");
+    if (!typeId) return showToast("warning","ข้อมูลไม่ครบ","กรุณาเลือกประเภทห้อง");
+    if (isDupName(name)) return showToast("warning","ชื่อห้องซ้ำ","มีชื่อห้องนี้อยู่แล้ว");
 
     try {
-      $add.disabled = true;
-      $add.innerHTML = editing ? 'กำลังบันทึก...' : 'กำลังเพิ่ม...';
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = "กำลังบันทึก...";
 
-      // POST /api/room/add/ (รองรับเพิ่ม + upsert ฝั่ง server)
-      await apiPost('/api/room/add/', payload);           /* ตามรูปแบบ room.js เดิม */ /*:contentReference[oaicite:4]{index=4}*/
-
-      clearForm();
-      await loadRooms();
-    } catch (e) {
-      alert(e.message || 'บันทึกไม่สำเร็จ');
-      console.error(e);
-    } finally {
-      $add.disabled = false;
-      $add.innerHTML = editing
-        ? '<i class="bi bi-save me-2"></i>บันทึก'
-        : '<i class="bi bi-plus-lg me-2"></i><span>เพิ่มข้อมูล</span>';
-    }
-  }
-
-  /* ===================== ล้างฟอร์ม/ออกจากโหมดแก้ไข ===================== */
-  function clearForm() {
-    $name.value = '';
-    $type.value = '';
-    editing = false;
-    editingId = null;
-    $cancel.classList.add('d-none');
-    $add.innerHTML = '<i class="bi bi-plus-lg me-2"></i><span>เพิ่มข้อมูล</span>';
-  }
-
-  /* ===================== ลบทั้งหมด ===================== */
-  async function deleteAllRooms() {
-    if (!confirm('ยืนยันลบห้องทั้งหมด?')) return;
-    try {
-      // DELETE /api/room/delete-all/
-      await apiDelete('/api/room/delete-all/');           /* endpoints ตาม urls.py */ /*:contentReference[oaicite:5]{index=5}*/
-      await loadRooms();
-      alert('✅ ลบห้องทั้งหมดเรียบร้อยแล้ว');
-    } catch (e) {
-      alert(e.message || 'เกิดข้อผิดพลาดในการลบทั้งหมด');
-      console.error(e);
-    }
-  }
-
-  /* ===================== Event Delegation: edit / delete ===================== */
-  $tbody.addEventListener('click', async (ev) => {
-    const btn = ev.target.closest('button[data-act]');
-    if (!btn) return;
-    const act = btn.getAttribute('data-act');
-    const id  = btn.getAttribute('data-id');
-
-    if (act === 'edit') {
-      const row = roomsCache.find(x => String(x.id) === String(id));
-      if (!row) return;
-
-      // ใส่ค่าในฟอร์ม
-      $name.value = row.name ?? '';
-
-      // พยายามเลือก option ตาม "type id" ก่อน ถ้าไม่มีให้แมตช์ด้วยชื่อ
-      const typeId = row.type_id ?? row.room_type_id ?? row.type ?? null;
-      if (typeId != null && $type.querySelector(`option[value="${typeId}"]`)) {
-        $type.value = String(typeId);
+      const res = await fetch(API.add, {
+        method: "POST",
+        headers: headersJson(),
+        body: JSON.stringify({ name, type: Number(typeId) }),
+      });
+      await ensureOk(res, "บันทึกไม่สำเร็จ");
+      form.reset();
+      showToast("success","เพิ่มสำเร็จ","บันทึกข้อมูลเรียบร้อย");
+      await refresh();
+    } catch (err) {
+      const m = (err.message||"").toLowerCase();
+      if (m.includes("duplicate") || m.includes("unique")) {
+        showToast("danger","เพิ่มไม่สำเร็จ","ชื่อห้องนี้มีอยู่แล้ว");
       } else {
-        // fallback: เทียบชื่อ
-        const wanted = (row.type_name ?? '').trim();
-        let matched = false;
-        for (const opt of $type.options) {
-          if (opt.text.trim() === wanted && opt.value) {
-            $type.value = opt.value;
-            matched = true;
-            break;
-          }
-        }
-        if (!matched) $type.value = '';
+        showToast("danger","เพิ่มไม่สำเร็จ", err.message || "");
       }
-
-      // เข้าโหมดแก้ไข
-      editing = true;
-      editingId = Number(id);
-      $cancel.classList.remove('d-none');
-      $add.innerHTML = '<i class="bi bi-save me-2"></i>บันทึก';
-      $name.focus();
-    }
-
-    if (act === 'del') {
-      if (!confirm('ลบรายการนี้หรือไม่?')) return;
-      try {
-        // DELETE /api/room/delete/<id>/
-        await apiDelete(`/api/room/delete/${id}/`);       /* endpoints ตาม urls.py */ /*:contentReference[oaicite:6]{index=6}*/
-        await loadRooms();
-      } catch (e) {
-        alert(e.message || 'ลบไม่สำเร็จ');
-        console.error(e);
-      }
+    } finally {
+      btnSubmit.disabled = false;
+      btnSubmit.innerHTML = '<i class="bi bi-plus-lg me-2"></i><span>เพิ่มข้อมูล</span>';
     }
   });
 
-  /* ===================== Misc helpers ===================== */
-  function escapeHtml(s) {
-    return String(s ?? '')
-      .replace(/&/g,'&amp;')
-      .replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;')
-      .replace(/"/g,'&quot;')
-      .replace(/'/g,'&#39;');
-  }
+  /* ===== Row actions ===== */
+  tbody?.addEventListener("click", (e) => {
+    const tr = e.target.closest("tr");
+    if (!tr) return;
+    const id = tr.getAttribute("data-id");
+    const row = cache.find(x => String(x.id) === String(id));
+    if (!row) return;
 
-  /* ===================== Bindings ===================== */
-  $add.addEventListener('click', submitRoom);
-  $cancel.addEventListener('click', clearForm);
-  if ($delAll) $delAll.addEventListener('click', deleteAllRooms);
+    // แก้ไข
+    if (e.target.closest(".btn-edit")) {
+      editId.value = row.id;
+      editName.value = row.name;
+      const tid = row.type_id ?? row.room_type_id ?? row.type;
+      editType.value = (tid != null && editType.querySelector(`option[value="${tid}"]`)) ? String(tid) : "";
+      if (!editType.value) {
+        for (const opt of [...editType.options]) {
+          if (opt.text.trim() === (row.type_name||row.room_type_name||"").trim()) { editType.value = opt.value; break; }
+        }
+      }
+      bsEdit?.show();
+      return;
+    }
 
-  /* ===================== Init ===================== */
+    // ลบเดี่ยว
+    if (e.target.closest(".btn-delete")) {
+      pendingDeleteId = id;
+      delRoomName.textContent = row.name || "";
+      bsDel?.show();
+    }
+  });
+
+  // save edit
+  btnSave?.addEventListener("click", async () => {
+    const id = editId.value;
+    const name = (editName.value || "").trim();
+    const typeId = editType.value;
+
+    if (!name) return showToast("warning","ข้อมูลไม่ครบ","กรุณากรอกชื่อห้องเรียน");
+    if (!typeId) return showToast("warning","ข้อมูลไม่ครบ","กรุณาเลือกประเภทห้อง");
+    if (isDupName(name, id)) return showToast("warning","ชื่อห้องซ้ำ","มีชื่อห้องนี้อยู่แล้ว");
+
+    try {
+      btnSave.disabled = true;
+      const res = await fetch(API.add, {
+        method: "POST",
+        headers: headersJson(),
+        body: JSON.stringify({ id: Number(id), name, type: Number(typeId) }),
+      });
+      await ensureOk(res, "อัปเดตไม่สำเร็จ");
+      bsEdit?.hide();
+      showToast("success","แก้ไขสำเร็จ","บันทึกข้อมูลเรียบร้อย");
+      await refresh();
+    } catch (err) {
+      const m = (err.message||"").toLowerCase();
+      if (m.includes("duplicate") || m.includes("unique")) {
+        showToast("danger","แก้ไขไม่สำเร็จ","ชื่อห้องนี้มีอยู่แล้ว");
+      } else {
+        showToast("danger","แก้ไขไม่สำเร็จ", err.message || "");
+      }
+    } finally {
+      btnSave.disabled = false;
+    }
+  });
+
+  // confirm delete (single)
+  btnConfirmDelete?.addEventListener("click", async () => {
+    if (!pendingDeleteId) return;
+    try {
+      btnConfirmDelete.disabled = true;
+      const res = await fetch(API.del(pendingDeleteId), { method:"DELETE", headers:{ "X-CSRFToken": csrftoken, Accept:"application/json" } });
+      await ensureOk(res, "ลบไม่สำเร็จ");
+      bsDel?.hide();
+      showToast("success","ลบสำเร็จ","รายการถูกลบแล้ว");
+      await refresh();
+    } catch (err) {
+      showToast("danger","ลบไม่สำเร็จ", err.message || "");
+    } finally {
+      btnConfirmDelete.disabled = false;
+      pendingDeleteId = null;
+    }
+  });
+
+  // delete-all
+  btnDeleteAll?.addEventListener("click", () => bsDelAll?.show());
+  btnConfirmDeleteAll?.addEventListener("click", async () => {
+    try {
+      btnConfirmDeleteAll.disabled = true;
+      const res = await fetch(API.delAll, { method:"DELETE", headers:{ "X-CSRFToken": csrftoken, Accept:"application/json" } });
+      await ensureOk(res, "ลบทั้งหมดไม่สำเร็จ");
+      bsDelAll?.hide();
+      showToast("success","ลบทั้งหมดสำเร็จ","ลบข้อมูลห้องทั้งหมดแล้ว");
+      await refresh();
+    } catch (err) {
+      showToast("danger","ลบทั้งหมดไม่สำเร็จ", err.message || "");
+    } finally {
+      btnConfirmDeleteAll.disabled = false;
+    }
+  });
+
+  /* ===== Init ===== */
   (async () => {
-    await loadRoomTypes();   // /api/roomtype/list/
-    await loadRooms();       // /api/room/list/
+    await loadRoomTypes();
+    await refresh();
   })();
 });

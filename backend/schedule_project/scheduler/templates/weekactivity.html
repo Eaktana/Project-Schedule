@@ -16,9 +16,6 @@
   <link rel="stylesheet" href="{% static 'css/weekactivity.css' %}">
 </head>
 <body>
-  <!-- Notification Container -->
-  <div class="notification-container" id="notificationContainer"></div>
-
   <!-- Header -->
   <header class="bg-white border-bottom py-3">
     <div class="container-fluid" style="max-width: 1400px;">
@@ -132,7 +129,7 @@
 
               <div class="col-md-6">
                 <label for="stop_time_activity" class="form-label">เวลาสิ้นสุด</label>
-                <select class="form-select" id="stop_time_activity">
+                <select class="form-select" id="stop_time_activity" disabled>
                   <option value="">คำนวณอัตโนมัติ</option>
                 </select>
               </div>
@@ -194,8 +191,8 @@
                         {% endif %}
                       </td>
                       <td><span class="badge bg-primary">{{ activity.hours_activity }}</span></td>
-                      <td><span class="badge bg-success">{{ activity.start_time_activity }}</span></td>
-                      <td><span class="badge bg-warning">{{ activity.stop_time_activity }}</span></td>
+                      <td><span class="badge bg-success">{{ activity.start_time_activity|time:"H:i" }}</span></td>
+                      <td><span class="badge bg-warning">{{ activity.stop_time_activity|time:"H:i" }}</span></td>
                       <td>
                         <button class="btn btn-warning-gradient btn-sm me-1" onclick="openEditModal(this)" title="แก้ไข">
                           <i class="bi bi-pencil"></i>
@@ -207,7 +204,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                      <td colspan="5" class="text-center text-muted">ไม่มีข้อมูลกิจกรรม</td>
+                      <td colspan="6" class="text-center text-muted">ไม่มีข้อมูลกิจกรรม</td>
                     </tr>
                     {% endfor %}
                   </tbody>
@@ -227,7 +224,7 @@
 
   <!-- Edit Modal -->
   <div class="modal fade" id="editModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
       <div class="modal-content modal-rounded">
         <div class="modal-header modal-header-gradient">
           <h5 class="modal-title">
@@ -261,7 +258,9 @@
             </div>
             <div class="col-12">
               <label for="edit_stop_time_activity" class="form-label">เวลาสิ้นสุด</label>
-              <select class="form-select" id="edit_stop_time_activity"></select>
+              <select class="form-select" id="edit_stop_time_activity" disabled>
+                <option value="">คำนวณอัตโนมัติ</option>
+              </select>
             </div>
           </div>
         </div>
@@ -277,12 +276,54 @@
     </div>
   </div>
 
+  <!-- Toast host (แบบเดียวกับ Subject) -->
+  <div id="toastHost" class="toast-container position-fixed top-0 end-0 p-3"></div>
+
+  <!-- Confirm Delete (single) Modal -->
+  <div class="modal fade" id="confirmDeleteActivityModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-4 overflow-hidden">
+        <div class="modal-header border-0 bg-danger text-white">
+          <h5 class="modal-title"><i class="bi bi-trash3 me-2"></i>ยืนยันการลบ</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          ต้องการลบกิจกรรม: <span class="fw-semibold" id="del_activity_name">-</span> ใช่ไหม?
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">ยกเลิก</button>
+          <button type="button" class="btn btn-danger" id="btnConfirmDeleteActivity">ลบ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Delete All Modal -->
+  <div class="modal fade" id="confirmDeleteAllActivityModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-4 overflow-hidden">
+        <div class="modal-header border-0 bg-danger text-white">
+          <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2"></i>ลบกิจกรรมทั้งหมด</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          ต้องการลบ <span class="fw-semibold">กิจกรรมทั้งหมด</span> ใช่ไหม? การกระทำนี้ไม่สามารถย้อนกลับได้
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">ยกเลิก</button>
+          <button type="button" class="btn btn-danger" id="btnConfirmDeleteAllActivity">ลบทั้งหมด</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
   <!-- Bootstrap Bundle -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-          integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
-          crossorigin="anonymous"></script>
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+        crossorigin="anonymous"></script>
 
   <!-- Page JS -->
- <script src="{% static 'js/weekactivity.js' %}"></script>
+  <script src="{% static 'js/weekactivity.js' %}"></script>
 </body>
 </html>

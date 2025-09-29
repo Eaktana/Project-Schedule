@@ -1,4 +1,15 @@
 /* ===== Global ===== */
+:root{
+  --tt-daycolw: 160px;
+  --tt-colw: 120px;
+  --tt-hours: 9;
+  --tt-gap: 6px;
+  --tt-row-h: 64px;
+
+  --tt-dayw-actual: 140px;
+  --tt-day-borderw: 0px;
+}
+
 body{ background:#eaedffff; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
 .header-icon{
   width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;
@@ -62,32 +73,11 @@ body{ background:#eaedffff; font-family:'Segoe UI', Tahoma, Geneva, Verdana, san
   display:inline-block;font-size:.75rem;padding:.125rem .5rem;border-radius:.375rem;
   background:rgba(255,255,255,.15);
 }
-#tt-table thead th.sticky-top{ position:sticky; top:0; z-index:5; background:#f8f9fa; }
-#tt-table tbody th.sticky-col{ position:sticky; left:0; z-index:4; background:#f8f9fa; }
 
 .tt-item-card{ transition: box-shadow .2s ease, transform .05s ease; }
 .tt-item-card:hover{ box-shadow:0 .4rem 1rem rgba(0,0,0,.08); transform:translateY(-1px); }
 
-#tt-table td .tt-slot{ align-items:flex-start; text-align:left; }
-#tt-table td .tt-slot .tt-badge{ align-self:flex-start; margin-top:.25rem; }
-
-:root{ --tt-slot-h:56px; }
-#tt-table td{ padding:.35rem .5rem !important; vertical-align:middle !important; }
-#tt-table td>.tt-slot{
-  display:grid !important; grid-auto-rows:min-content; row-gap:.2rem;
-  align-content:center; justify-items:start; min-height:var(--tt-slot-h) !important; overflow:hidden;
-}
-
-/* ปิดคำเตือน vendorPrefix: ใส่ทั้ง -webkit-line-clamp และ line-clamp */
-#tt-table .tt-slot .fw-semibold{
-  line-height:1.25; display:-webkit-box; -webkit-box-orient:vertical;
-  -webkit-line-clamp:2; line-clamp:2; overflow:hidden;
-}
-
-#tt-table .tt-slot .small{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-#ttScheduleModal .modal-content{ height:80vh; display:flex; flex-direction:column; }
-#ttScheduleModal .modal-body{ min-height:0; display:flex; flex-direction:column; overflow:auto; }
+/* ========== Modal sizing & layout ========== */
 
 #tt-select-view{
   flex: 1 1 auto;
@@ -120,8 +110,6 @@ body{ background:#eaedffff; font-family:'Segoe UI', Tahoma, Geneva, Verdana, san
   pointer-events: none;
 }
 
-#tt-grid-wrap .table-responsive{ max-height:60vh; }
-
 .empty-state{
   text-align:center; padding:3rem 1rem; color:#6b7280;
   display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -153,12 +141,6 @@ body{ background:#eaedffff; font-family:'Segoe UI', Tahoma, Geneva, Verdana, san
   #ttScheduleModal .sb-grid{ grid-template-columns: 1fr !important; }
 }
 
-/* ให้โมดัลกว้างเท่าเดิมทั้งก่อน/หลังค้นหา */
- #ttScheduleModal .modal-dialog.modal-xl{
-  --bs-modal-width: 1280px;
-  max-width: var(--bs-modal-width);
-}
-
 #ttScheduleModal .sb-card{
   border:1px solid #e9ecef; border-radius:14px; background:#fff; padding:16px;
   box-shadow:0 2px 8px rgba(0,0,0,.04);
@@ -180,3 +162,281 @@ body{ background:#eaedffff; font-family:'Segoe UI', Tahoma, Geneva, Verdana, san
   min-height:calc(1.25em * 2);
 }
 #ttScheduleModal .sb-sub{ font-size:.9rem; color:#6c757d; }
+
+/* สีพื้นหลังตามประเภท */
+.tt-type-lecture { background:#64748b; color:#fff; }
+.tt-type-lab     { background:#059669; color:#fff; }
+.tt-type-seminar { background:#f59e0b; color:#fff; }
+.tt-type-activity{ background:#ef4444; color:#fff; }
+
+/* ===== พื้นที่แสดงตาราง กินที่เหลือทั้งหมด (ไม่มีสกรอลล์ภายใน) ===== */
+#tt-table-view{
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Modal พอดีจอ (ไม่เลื่อนด้านใน) */
+#ttScheduleModal .modal-dialog.modal-xl{
+  --bs-modal-width: min(96vw, 1360px);
+  max-width: var(--bs-modal-width);
+}
+
+#ttScheduleModal .modal-body{
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* พื้นที่แสดงตาราง กินพื้นที่ที่เหลือทั้งหมด */
+#tt-table-view{ display:flex; flex-direction:column; min-height:0; }
+
+#tt-toolbar{ flex:0 0 auto; }
+
+/* ลดระยะพื้นที่ของคอนโทรลด้านบนให้กินที่น้อยลง */
+#tt-toolbar { padding-block: .25rem; }
+#tt-controls { margin-bottom: .25rem; }
+
+/* หน้าจอเตี้ยเป็นพิเศษ → ย่อเพิ่มนิด */
+@media (max-height: 900px){
+  #tt-calendar .tt-slot .fw-semibold { font-size: .82rem; }
+  #tt-calendar .tt-slot .small      { font-size: .72rem; }
+  #tt-calendar .tt-slot .badge      { font-size: .62rem; }
+}
+
+/* ===== Fit timetable tighter ===== */
+
+/* ย่อฟอนต์/ระยะการ์ดในช่องอีกนิด */
+#tt-calendar .tt-slot{ padding:.32rem .42rem; }     /* เดิมมีอยู่แล้ว → คงไว้ */
+#tt-calendar .tt-slot .fw-semibold{ font-size:.80rem; }   /* เดิม .82 → .80 */
+#tt-calendar .tt-slot .small{ font-size:.70rem; }         /* เดิม .72 → .70 */
+#tt-calendar .tt-slot .badge{ font-size:.58rem; padding:.10rem .30rem; }  /* ย่ออีกนิด */
+
+/* หัวคอลัมน์และคอลัมน์วัน ติดขอบ/มีพื้นหลังชัด */
+#tt-calendar tbody th{ background:#fff; }
+
+/* สีการ์ดตามประเภท (คงของเดิมไว้แต่ปรับให้อ่านง่ายขึ้นเล็กน้อย) */
+.tt-type-lecture { background:#64748b; color:#fff; }
+.tt-type-lab     { background:#059669; color:#fff; }
+.tt-type-seminar { background:#f59e0b; color:#fff; }
+.tt-type-activity{ background:#ef4444; color:#fff; }
+
+/* โมดัลใหญ่ พอดีจอ ไม่ต้องเลื่อนทั้ง body */
+#ttScheduleModal .modal-dialog.modal-xl {
+  --bs-modal-width: min(96vw, 1360px);
+  max-width: var(--bs-modal-width);
+}
+
+#ttScheduleModal .modal-content {
+  height: 92vh; /* ใช้ค่าเดียว ไม่ต้องประกาศซ้ำหลายที่ */
+  display: flex;
+  flex-direction: column;
+}
+
+/* ====== FINAL OVERRIDES: size + consistency ====== */
+
+/* 5) บังคับ “ความสูงแถวเท่ากัน” จริง ๆ */
+#tt-calendar tbody th,
+#tt-calendar tbody td{
+  height: var(--tt-row-h, 56px) !important;
+  padding: 0 !important;          /* ลดโอกาสแถวขยายเอง */
+  vertical-align: top !important; /* กันเด้งกลางแล้วกินที่ */
+  overflow: hidden !important;    /* ถ้าเนื้อหายาวเกิน ไม่ให้ดันแถว */
+}
+
+/* ===== Timetable (clean & compact) ===== */
+
+/* คอนเทนเนอร์ตาราง: เลื่อนแนวนอนเท่านั้น */
+#tt-table-view .table-responsive{
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* กำหนดความกว้างตาราง = วัน + (จำนวนชั่วโมง * ความกว้างต่อชั่วโมง) */
+#tt-calendar{
+  width: calc(var(--tt-daycolw) + var(--tt-hours) * var(--tt-colw)) !important;
+  table-layout: fixed;
+  border-color:#e9eef3 !important;
+}
+
+/* หัวคอลัมน์/คอลัมน์วัน (ซ้าย) */
+#tt-calendar thead th:first-child,
+#tt-calendar tbody th{
+  width: var(--tt-daycolw) !important;
+  min-width: var(--tt-daycolw) !important;
+  white-space: nowrap;
+  padding: .2rem .35rem !important;
+  font-size: .9rem;
+  position: sticky; left: 0; z-index: 4; background:#fff;  /* sticky ถ้าต้องการ */
+}
+
+/* คอลัมน์ชั่วโมง */
+#tt-calendar thead th:not(:first-child),
+#tt-calendar tbody td{
+  width: var(--tt-colw) !important;
+  min-width: var(--tt-colw) !important;
+}
+
+/* หัวคอลัมน์เวลา (บน) */
+#tt-calendar thead th.sticky-top{
+  position: sticky; top: 0; z-index: 5; background: #fff;
+}
+
+/* ความสูงแถวคงที่ + ไม่ให้เนื้อหาดัน */
+#tt-calendar tbody tr{ height: var(--tt-row-h) !important; }
+#tt-calendar tbody th,
+#tt-calendar tbody td{
+  height: var(--tt-row-h) !important;
+  padding: 0 !important;
+  vertical-align: top !important;
+  overflow: hidden !important;
+  border: 1px solid #e9eef3 !important;
+}
+
+/* กล่องวิชา (เวอร์ชันรวม) */
+#tt-calendar td > .tt-slot{
+  margin: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  box-sizing: border-box;
+
+  display: flex !important;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+
+  /* ค่าที่กระชับกว่า (จากบล็อกล่าง) */
+  padding: .28rem .36rem !important;
+  border-radius: .45rem !important;
+  gap: .2rem !important;
+
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  overflow: hidden;
+
+  /* สำคัญ: ยกบ็อกวิชาให้อยู่เหนือเส้นกริด */
+  position: relative;
+  z-index: 2;
+  /* ทางเลือก: กันพื้นหลังโดนเส้นลอด */
+  background-clip: padding-box;
+}
+
+
+/* ข้อความภายในกล่องไม่ให้ดันความสูง */
+#tt-calendar .tt-slot .tt-title{
+  font-size: .9rem; font-weight: 700;
+  display: -webkit-box; -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden;
+}
+#tt-calendar .tt-slot .tt-meta{
+  font-size: .78rem;
+  white-space: nowrap; text-overflow: ellipsis; overflow: hidden;
+}
+
+/* สีตามประเภท (คงเดิมของคุณ) */
+.tt-type-lecture { background:#64748b; color:#fff; }
+.tt-type-lab     { background:#059669; color:#fff; }
+.tt-type-seminar { background:#f59e0b; color:#fff; }
+.tt-type-activity{ background:#ef4444; color:#fff; }
+
+/* ===== Compact timetable overrides ===== */
+
+/* ย่อฟอนต์หัวตารางและคอลัมน์วันลงเล็กน้อย */
+#tt-calendar thead th{
+  font-size: .82rem !important;
+}
+#tt-calendar tbody th{
+  font-size: .82rem !important;
+  padding: .15rem .35rem !important;
+}
+
+/* ข้อความในกล่องวิชา */
+#tt-calendar .tt-slot .tt-title{
+  font-size: .80rem !important;  /* เดิม ~.9/.85 */
+  -webkit-line-clamp: 2; line-clamp: 2;
+}
+#tt-calendar .tt-slot .tt-meta{
+  font-size: .70rem !important;  /* เดิม ~.78/.75 */
+}
+#tt-calendar .tt-slot .badge,
+#tt-calendar .tt-slot .tt-chip{
+  font-size: .58rem !important;
+  padding: .08rem .30rem !important;
+}
+
+/* ให้เส้นกริดชัดขึ้นนิดเมื่อย่อ */
+#tt-calendar tbody td,
+#tt-calendar tbody th {
+  border-left: none !important;
+  border-right: none !important;
+}
+
+/* === Fixed-time columns === */
+#tt-calendar{
+  table-layout: fixed;        /* ให้ตารางใช้ความกว้างจาก colgroup */
+  border-collapse: separate;  /* กันความกว้างเพี้ยนจาก collapse */
+  border-spacing: 0;
+}
+
+/* กำหนดความกว้างคอลัมน์ชั่วโมงผ่าน colgroup */
+#tt-calendar col.tt-hour-col{
+  width: var(--tt-colw);      /* ใช้ตัวแปรเดิมของคุณ */
+}
+#tt-calendar col.tt-day-col{
+  width: var(--tt-daycolw);   /* คอลัมน์วัน (ซ้ายสุด) */
+}
+
+/* ===== Hour grid lines that ignore colspan ===== */
+#tt-calendar{
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* วาดเส้นชั่วโมงแบบไม่สน colspan ด้วย pseudo-element แทน */
+#tt-calendar{
+  position: relative;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #fff !important; /* ปิดเส้นพื้นหลังแบบเดิม */
+}
+
+/* ตารางต้อง relative เพื่อให้ ::after วางทับได้ */
+#tt-calendar{
+  position: relative;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  /* สำคัญ: อย่าให้มี background-image แบบเดิมซ้อน */
+  background: #fff !important;
+}
+
+/* เส้นตั้งทุกชั่วโมง – วาดใต้หัวตาราง และเริ่มหลังคอลัมน์ "วัน" จริง ๆ */
+#tt-calendar::after{
+  content: "";
+  position: absolute;
+  top: var(--tt-thead-h, 0px);
+  left: calc(var(--tt-dayw-actual, 140px) + var(--tt-day-borderw, 0px));
+  width: calc(var(--tt-hours) * var(--tt-colw, 120px));
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0; /* เดิมเป็น 1 -> ให้เส้นอยู่ใต้ทุกอย่าง */
+
+  background-image: repeating-linear-gradient(
+    to right,
+    #e9eef3 0,
+    #e9eef3 1px,
+    transparent 1px,
+    transparent calc(var(--tt-colw, 120px))
+  );
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}

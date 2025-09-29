@@ -45,444 +45,6 @@ function setModalState(state, opts = {}) {
   }
 }
 
-/* ===== สร้างตารางสอน (เวอร์ชันเดียว) ===== */
-function generateSchedule() {
-  const modalEl = document.getElementById("processingModal");
-  const modal = new bootstrap.Modal(modalEl, { backdrop: "static", keyboard: false });
-  document.getElementById("processingMessage").textContent = "กำลังประมวลผล...";
-  setModalState("processing");
-  modal.show();
-
-  fetch("/api/schedule/generate/", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-CSRFToken": getCookie("csrftoken") },
-  })
-    .then(async (r) => {
-      const d = await r.json().catch(() => ({}));
-      // สำเร็จถ้า HTTP 200 และไม่ได้ส่ง status="error"
-      if (r.ok && (!d.status || d.status === "success")) {
-        setModalState("success");
-      } else {
-        setModalState("error", { message: d.message || "เกิดข้อผิดพลาด" });
-      }
-    })
-    .catch((e) => {
-      console.error(e);
-      setModalState("error", { message: "เกิดข้อผิดพลาดในการสร้างตารางสอน" });
-    });
-}
-
-
-/* ===== Schedule Modal (grid/list) ===== */
-/*(function () {
-  const DAY_ORDER = [
-    "จันทร์",
-    "อังคาร",
-    "พุธ",
-    "พฤหัสบดี",
-    "ศุกร์",
-    "เสาร์",
-    "อาทิตย์",
-  ];
-  const START_HOUR = 8,
-    END_HOUR = 21;
-
-  let SCHEDULES = null,
-    selectedCategory = "Teacher",
-    selectedItem = "",
-    searchTerm = "",
-    viewMode = "grid",
-    filtered = [];
-
-  const DAY_MAP = {
-    จันทร์: "จันทร์",
-    "จ.": "จันทร์",
-    mon: "จันทร์",
-    monday: "จันทร์",
-    1: "จันทร์",
-    อังคาร: "อังคาร",
-    "อ.": "อังคาร",
-    tue: "อังคาร",
-    tuesday: "อังคาร",
-    2: "อังคาร",
-    พุธ: "พุธ",
-    "พ.": "พุธ",
-    wed: "พุธ",
-    wednesday: "พุธ",
-    3: "พุธ",
-    พฤหัสบดี: "พฤหัสบดี",
-    "พฤ.": "พฤหัสบดี",
-    thu: "พฤหัสบดี",
-    thursday: "พฤหัสบดี",
-    4: "พฤหัสบดี",
-    ศุกร์: "ศุกร์",
-    "ศ.": "ศุกร์",
-    fri: "ศุกร์",
-    friday: "ศุกร์",
-    5: "ศุกร์",
-    เสาร์: "เสาร์",
-    "ส.": "เสาร์",
-    sat: "เสาร์",
-    saturday: "เสาร์",
-    6: "เสาร์",
-    อาทิตย์: "อาทิตย์",
-    "อา.": "อาทิตย์",
-    sun: "อาทิตย์",
-    sunday: "อาทิตย์",
-    7: "อาทิตย์",
-  };
-
-  const normalizeDay = (d) => {
-    if (!d) return null;
-    const k = String(d).trim().toLowerCase();
-    return DAY_MAP[k] || d;
-  };
-  const esc = (s) =>
-    String(s ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  const typeClass = (t) => {
-    const k = (t || "").toLowerCase();
-    if (k === "lab") return "tt-type-lab";
-    if (k === "lecture") return "tt-type-lecture";
-    if (k === "tutorial") return "tt-type-tutorial";
-    if (k === "seminar") return "tt-type-seminar";
-    return "tt-type-default";
-  };
-  const formatHH = (h) => String(h).padStart(2, "0") + ":00";
-
-  const getHourRange = (r) => {
-    const toInt = (v) => {
-      const n = parseInt(v, 10);
-      return Number.isFinite(n) ? n : null;
-    };
-    let sh = null,
-      eh = null;
-    if (r.Hour_Start != null) sh = toInt(r.Hour_Start);
-    if (sh == null && r.Start_Hour != null) sh = toInt(r.Start_Hour);
-    if (sh == null && r.Hour != null && r.Hour !== "") sh = toInt(r.Hour);
-    if (r.Hour_End != null) eh = toInt(r.Hour_End);
-    if (eh == null && r.End_Hour != null) eh = toInt(r.End_Hour);
-    if (eh == null && sh != null && r.Duration_Hours != null)
-      eh = sh + toInt(r.Duration_Hours);
-    if (sh == null) return null;
-    if (eh == null) eh = sh + 1;
-    return [sh, eh];
-  };
-
-  const getDay = (r) => {
-    let day = null;
-    if (r.Day) day = r.Day;
-    else if (r.Time_Slot) day = String(r.Time_Slot).split("_")[0];
-    return normalizeDay(day);
-  };
-
-  // เปิดโมดัล + โหลดข้อมูล
-  window.viewSchedule = function () {
-    const modal = new bootstrap.Modal(document.getElementById("scheduleModal"));
-    modal.show();
-    selectedCategory =
-      document.getElementById("ttCategory")?.value || "Teacher";
-    selectedItem = "";
-    searchTerm = "";
-    viewMode = "grid";
-
-    document.getElementById("tt-select-view").classList.remove("d-none");
-    document.getElementById("tt-table-view").classList.add("d-none");
-    document.getElementById("tt-items-grid").innerHTML = "";
-    document.getElementById("tt-select-empty").classList.add("d-none");
-    document.getElementById("tt-select-spinner").classList.remove("d-none");
-
-    if (!SCHEDULES) {
-      fetch("/api/schedule/view-generated/?order=day&dir=asc")
-        .then((r) => r.json())
-        .then((d) => {
-          SCHEDULES = d && d.status === "success" ? d.schedules || [] : [];
-        })
-        .catch(() => {
-          SCHEDULES = [];
-        })
-        .finally(() => {
-          document.getElementById("tt-select-spinner").classList.add("d-none");
-          buildUniqueItems();
-        });
-    } else {
-      document.getElementById("tt-select-spinner").classList.add("d-none");
-      buildUniqueItems();
-    }
-  };
-
-  // สร้างรายการให้เลือก (อาจารย์/ห้อง/กลุ่ม)
-  function buildUniqueItems() {
-    const field =
-      selectedCategory === "Teacher"
-        ? "Teacher"
-        : selectedCategory === "Room"
-        ? "Room"
-        : "Student_Group";
-    const items = [
-      ...new Set(
-        (SCHEDULES || []).map((x) => (x[field] || "").trim()).filter(Boolean)
-      ),
-    ].sort(new Intl.Collator("th").compare);
-
-    const grid = document.getElementById("tt-items-grid");
-    grid.innerHTML = items.map(name => `
-      <div class="sb-card tt-item-card" data-name="${esc(name)}" role="button" tabindex="0">
-        <div class="sb-head">
-          <div class="sb-icon">
-            ${selectedCategory === "Teacher"
-                ? '<i class="bi bi-person-circle"></i>'
-                : selectedCategory === "Room"
-                ? '<i class="bi bi-geo-alt"></i>'
-                : '<i class="bi bi-book"></i>'}
-          </div>
-          <div class="sb-title">${esc(name)}</div>
-        </div>
-        <div class="sb-sub">คลิกเพื่อดูตารางสอน</div>
-      </div>`).join("");
-
-    document
-      .getElementById("tt-select-empty")
-      .classList.toggle("d-none", items.length > 0);
-
-    document.querySelectorAll(".tt-item-card").forEach((el) => {
-      const go = () => {
-        selectedItem = el.dataset.name || "";
-        enterTableView();
-      };
-      el.addEventListener("click", go);
-      el.addEventListener("keypress", (e) => {
-        if (e.key === "Enter") go();
-      });
-    });
-  }
-
-  document.getElementById("ttCategory")?.addEventListener("change", (e) => {
-    selectedCategory = e.target.value;
-    selectedItem = "";
-    buildUniqueItems();
-  });
-
-  function enterTableView() {
-    document.getElementById("tt-select-view").classList.add("d-none");
-    document.getElementById("tt-table-view").classList.remove("d-none");
-    const searchEl = document.getElementById("ttSearch");
-    if (searchEl) searchEl.value = "";
-    searchTerm = "";
-    viewMode = "grid";
-    document.getElementById("tt-toggle-text").textContent = "มุมมองรายการ";
-    renderTableView();
-  }
-
-  document.getElementById("tt-back-btn")?.addEventListener("click", () => {
-    document.getElementById("tt-table-view").classList.add("d-none");
-    document.getElementById("tt-select-view").classList.remove("d-none");
-  });
-
-  document.getElementById("tt-toggle-view")?.addEventListener("click", () => {
-    viewMode = viewMode === "grid" ? "list" : "grid";
-    document.getElementById("tt-toggle-text").textContent =
-      viewMode === "grid" ? "มุมมองรายการ" : "มุมมองตาราง";
-    renderTableView();
-  });
-
-  function renderTableView() {
-    filtered = (SCHEDULES || []).filter((x) => {
-      const val =
-        selectedCategory === "Teacher"
-          ? x.Teacher || ""
-          : selectedCategory === "Room"
-          ? x.Room || ""
-          : x.Student_Group || "";
-      return val.trim() === selectedItem;
-    });
-    if (searchTerm) {
-      const q = searchTerm.toLowerCase();
-      filtered = filtered.filter((x) =>
-        [x.Subject_Name, x.Course_Code, x.Teacher, x.Room].some((s) =>
-          String(s || "")
-            .toLowerCase()
-            .includes(q)
-        )
-      );
-    }
-
-    document.getElementById("tt-title").innerHTML = `ตารางสอน - ${esc(
-      selectedItem
-    )}`;
-    const catLabel =
-      selectedCategory === "Teacher"
-        ? "อาจารย์"
-        : selectedCategory === "Room"
-        ? "ห้อง"
-        : "กลุ่มนักศึกษา";
-    document.getElementById(
-      "tt-desc"
-    ).innerHTML = `ตารางเรียนของ${catLabel} ${esc(selectedItem)}`;
-
-    if (viewMode === "grid") {
-      document.getElementById("tt-grid-wrap").classList.remove("d-none");
-      document.getElementById("tt-list-wrap").classList.add("d-none");
-      renderGrid();
-    } else {
-      document.getElementById("tt-list-wrap").classList.remove("d-none");
-      document.getElementById("tt-grid-wrap").classList.add("d-none");
-      renderList();
-    }
-  }
-
-  function renderList() {
-    const grid = document.getElementById("tt-list-grid");
-    if (!filtered.length) {
-      grid.innerHTML = "";
-      document.getElementById("tt-list-empty").classList.remove("d-none");
-      return;
-    }
-    document.getElementById("tt-list-empty").classList.add("d-none");
-
-    grid.innerHTML = filtered
-      .map(
-        (item) => `
-      <div class="col-12 col-md-6 col-xl-4">
-        <div class="card h-100 shadow-sm border-0">
-          <div class="card-body">
-            <h6 class="fw-semibold mb-2">${esc(item.Subject_Name || "")}</h6>
-            <p class="text-muted small mb-3">${esc(item.Course_Code || "")}</p>
-            <div class="small"><i class="bi bi-calendar-week me-1"></i>${esc(
-              item.Day || ""
-            )}</div>
-            <div class="small"><i class="bi bi-clock me-1"></i>${esc(
-              item.Time_Slot || String(item.Hour || "") + ":00"
-            )}</div>
-            <div class="small"><i class="bi bi-geo-alt me-1"></i>${esc(
-              item.Room || ""
-            )}</div>
-            <div class="small"><i class="bi bi-person me-1"></i>${esc(
-              item.Teacher || ""
-            )}</div>
-            <span class="badge bg-secondary mt-2">${esc(item.Type || "")}</span>
-          </div>
-        </div>
-      </div>`
-      )
-      .join("");
-  }
-
-  function mergeBlocks(rows) {
-    const byDay = Object.fromEntries(DAY_ORDER.map((d) => [d, {}]));
-    for (const r of rows) {
-      const day = getDay(r);
-      if (!day || !byDay[day]) continue;
-      const key = [
-        r.Course_Code || "",
-        r.Subject_Name || "",
-        r.Teacher || "",
-        r.Room || "",
-        (r.Type || "").toLowerCase(),
-      ].join("|");
-      byDay[day][key] ??= [];
-      const hr = getHourRange(r);
-      if (!hr) continue;
-      let [sh, eh] = hr;
-      if (eh <= sh) eh = sh + 1;
-      if (eh < START_HOUR || sh > END_HOUR) continue;
-      sh = Math.max(sh, START_HOUR);
-      eh = Math.min(eh, END_HOUR + 1);
-      byDay[day][key].push({
-        startHour: sh,
-        endHour: eh,
-        Course_Code: r.Course_Code || "",
-        Subject_Name: r.Subject_Name || "",
-        Teacher: r.Teacher || "",
-        Room: r.Room || "",
-        Type: (r.Type || "").toLowerCase(),
-        Day: day,
-      });
-    }
-    const blocks = {};
-    for (const day of Object.keys(byDay)) {
-      const merged = [];
-      for (const key of Object.keys(byDay[day])) {
-        const xs = byDay[day][key].sort((a, b) => a.startHour - b.startHour);
-        let cur = null;
-        for (const b of xs) {
-          if (!cur) {
-            cur = { ...b };
-            continue;
-          }
-          if (b.startHour <= cur.endHour) {
-            cur.endHour = Math.max(cur.endHour, b.endHour);
-          } else {
-            merged.push(cur);
-            cur = { ...b };
-          }
-        }
-        if (cur) merged.push(cur);
-      }
-      blocks[day] = merged;
-    }
-    return blocks;
-  }
-
-  function renderGrid() {
-    const table = document.getElementById("tt-table");
-    if (!filtered.length) {
-      table.innerHTML = "";
-      document.getElementById("tt-grid-empty").classList.remove("d-none");
-      return;
-    }
-    document.getElementById("tt-grid-empty").classList.add("d-none");
-
-    const blocksByDay = mergeBlocks(filtered);
-
-    let thead =
-      '<thead><tr><th class="sticky-top text-center align-middle">วัน / เวลา</th>';
-    for (let h = START_HOUR; h <= END_HOUR; h++)
-      thead += `<th class="sticky-top text-center">${formatHH(h)}</th>`;
-    thead += "</tr></thead>";
-
-    let tbody = "<tbody>";
-    for (const day of DAY_ORDER) {
-      const blocks = blocksByDay[day] || [];
-      const startIndex = Object.fromEntries(
-        blocks.map((b) => [String(b.startHour), b])
-      );
-      tbody += `<tr><th class="sticky-col">${day}</th>`;
-      for (let h = START_HOUR; h <= END_HOUR; h++) {
-        const b = startIndex[String(h)];
-        if (b) {
-          const colspan = Math.max(1, b.endHour - b.startHour);
-          const teacherShort = (b.Teacher || "").replace(/^อ\./, "");
-          tbody += `<td colspan="${colspan}">
-            <div class="tt-slot ${typeClass(b.Type)}">
-              <div class="fw-semibold small">${esc(b.Subject_Name || "-")}</div>
-              <div class="small">${esc(b.Course_Code || "")}</div>
-              <div class="small mt-1"><i class="bi bi-geo-alt me-1"></i>${esc(
-                b.Room || "-"
-              )}
-                <span class="ms-2"><i class="bi bi-person me-1"></i>${esc(
-                  teacherShort || "-"
-                )}</span></div>
-              <span class="tt-badge text-white">${esc(b.Type || "—")}</span>
-            </div>
-          </td>`;
-          h += colspan - 1;
-        } else {
-          const inside = blocks.some((x) => x.startHour < h && x.endHour > h);
-          if (!inside) tbody += `<td>&nbsp;</td>`;
-        }
-      }
-      tbody += `</tr>`;
-    }
-    tbody += "</tbody>";
-    table.innerHTML = thead + tbody;
-  }
-})(); */
-
 // เรียกโหลดรายการจาก GeneratedSchedule แล้วแสดงเป็นการ์ด
 async function loadScheduleSelect() {
   const grid = document.getElementById('tt-items-grid');
@@ -490,31 +52,24 @@ async function loadScheduleSelect() {
   const empty = document.getElementById('tt-select-empty');
   const categoryEl = document.getElementById('ttCategory');
   const selectedCategory = (categoryEl?.value || 'Teacher');
-  const esc = (s) => String(s ?? "")
-  .replaceAll("&","&amp;")
-  .replaceAll("<","&lt;")
-  .replaceAll(">","&gt;")
-  .replaceAll('"',"&quot;")
-  .replaceAll("'","&#039;");
-
-  // ⬅️ ดึงคำค้นจากช่องค้นหา
-  const q = (document.getElementById('ttSearch')?.value || '').trim();
 
   spin?.classList.remove('d-none');
   empty?.classList.add('d-none');
   grid.innerHTML = '';
 
+  // ดึงคำค้นจากช่องค้นหา
+  const q = (document.getElementById('ttSearch')?.value || '').trim();
+
   try {
-    // ⬅️ ส่ง q ไป backend
-    const res = await fetch(`/api/schedule/list/?view=${
-      selectedCategory.toLowerCase()
-    }&q=${encodeURIComponent(q)}`);
+    const res = await fetch(`/api/schedule/list/?view=${selectedCategory.toLowerCase()}&q=${encodeURIComponent(q)}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 
     const items = (data.results || []).map(x => x.display).filter(Boolean);
+
     grid.innerHTML = items.map((raw) => {
-      const name = esc(raw);
+      const nameRaw = String(raw ?? '');
+      const nameEsc = esc(nameRaw);
       const icon = (selectedCategory === "Teacher")
         ? '<i class="bi bi-person-circle fs-4"></i>'
         : (selectedCategory === "Room")
@@ -522,10 +77,10 @@ async function loadScheduleSelect() {
           : '<i class="bi bi-book fs-4"></i>';
 
       return `
-        <div class="sb-card tt-item-card" data-name="${name}" role="button" tabindex="0">
+        <div class="sb-card tt-item-card" data-key="${nameRaw}" role="button" tabindex="0">
           <div class="sb-head">
             <div class="sb-icon">${icon}</div>
-            <div class="sb-title" title="${name}">${name}</div>
+            <div class="sb-title" title="${nameEsc}">${nameEsc}</div>
           </div>
           <div class="sb-sub">คลิกเพื่อดูตารางสอน</div>
         </div>
@@ -534,6 +89,8 @@ async function loadScheduleSelect() {
 
     grid.classList.add('sb-grid');
     grid.style.display = 'grid';
+
+    wireItemClicks();
 
     spin?.classList.add('d-none');
     empty?.classList.toggle('d-none', items.length !== 0);
@@ -567,4 +124,413 @@ document.getElementById('ttCategory')?.addEventListener('change', () => {
 // โหลดรายการทุกครั้งที่เปิดโมดัล "ตารางสอน"
 document.getElementById('ttScheduleModal')?.addEventListener('shown.bs.modal', () => {
   loadScheduleSelect();
+  requestAnimationFrame(resizeTimetableRows);
+
+  setTimeout(resizeTimetableRows, 0);
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => setTimeout(resizeTimetableRows, 0));
+  }
 });
+
+// ====== helper ======
+const esc = (s) => String(s ?? "")
+  .replaceAll("&","&amp;")
+  .replaceAll("<","&lt;")
+  .replaceAll(">","&gt;")
+  .replaceAll('"',"&quot;")
+  .replaceAll("'","&#039;");
+
+// ===== Calendar constants =====
+const TT_DAY_ORDER = ["จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์","อาทิตย์"];
+
+// ช่วงเวลาที่อยากโชว์บนหัวตาราง (ตัวอย่างภาพ: 08:00 ถึง 20:30 ⇒ 25 คาบ)
+const TT_START = { h: 8,  m: 0  };   // เริ่ม 08:00
+const TT_END   = { h: 21, m: 0 };   // จบที่ 21:00 → ได้ 26 คาบ 30 นาที
+const TT_SLOT_MIN = 30;              // ความละเอียดคาบ (นาที)
+
+// state ของตาราง
+let ttRowsRaw = [];
+let ttRowsFiltered = [];
+
+// สลับไปมุมมอง "ตาราง"
+function showTableView() {
+  document.getElementById('tt-select-view')?.classList.add('d-none');
+  document.getElementById('tt-table-view')?.classList.remove('d-none');
+  document.getElementById('tt-controls')?.classList.add('d-none');
+  document.getElementById('tt-toolbar')?.classList.remove('d-none');
+  requestAnimationFrame(resizeTimetableRows);
+}
+
+function showSelectView() {
+
+  document.getElementById('tt-table-view')?.classList.add('d-none');
+  document.getElementById('tt-select-view')?.classList.remove('d-none');
+  document.getElementById('tt-controls')?.classList.remove('d-none');
+  document.getElementById('tt-toolbar')?.classList.add('d-none');
+
+  const s = document.getElementById('ttSearchWithin'); 
+  if (s) s.value = "";
+}
+
+// โหลดแถวตารางสำหรับรายการที่เลือก แล้วเติมลงตาราง
+async function loadTableFor(view, key) {
+  const tbl = document.getElementById('tt-calendar');
+  const empty = document.getElementById('tt-calendar-empty');
+  if (tbl) tbl.innerHTML = `<thead><tr><th class="text-center py-4">กำลังโหลด...</th></tr></thead>`;
+  empty?.classList.add('d-none');
+
+  try {
+    const res = await fetch(`/api/schedule/timetable/?view=${encodeURIComponent(view)}&key=${encodeURIComponent(key)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    const rows = (data.items || []).map(r => ({
+      Day: r.Day || "",
+      StartTime: r.StartTime || "",
+      StopTime: r.StopTime || "",
+      Subject_Name: r.Subject_Name || "",
+      Course_Code: r.Course_Code || "",
+      Teacher: r.Teacher || "",
+      Room: r.Room || "",
+      Type: (r.Type || "").toLowerCase(),
+      Student_Group: r.Student_Group || ""
+    }));
+
+    ttRowsRaw = rows;
+    showTableView();
+    applyTimetableFilter();   // กรอง/เรนเดอร์ครั้งแรก (รองรับกรณีมีค่าค้างในช่องค้นหา)
+  } catch (err) {
+    console.error(err);
+    if (tbl) tbl.innerHTML = "";
+    empty?.classList.remove('d-none');
+    empty.textContent = 'โหลดตารางไม่สำเร็จ';
+  }
+}
+
+// จับคลิกทุกการ์ดหลังจากโหลดรายชื่อเสร็จ
+function wireItemClicks() {
+  document.querySelectorAll('.tt-item-card').forEach(el => {
+    el.addEventListener('click', async () => {
+      const key  = el.dataset.key || '';
+      const view = (document.getElementById('ttCategory')?.value || 'Teacher').toLowerCase();
+      await loadTableFor(view, key);
+    });
+  });
+}
+
+function applyTimetableFilter() {
+  const q = (document.getElementById('ttSearchWithin')?.value || "").trim().toLowerCase();
+  if (!q) ttRowsFiltered = ttRowsRaw.slice();
+  else {
+    ttRowsFiltered = ttRowsRaw.filter(r =>
+      [r.Subject_Name, r.Course_Code, r.Teacher, r.Room, r.Type, r.Student_Group]
+      .some(v => String(v||"").toLowerCase().includes(q))
+    );
+  }
+  renderCalendar(ttRowsFiltered);
+}
+
+// ผูกอีเวนต์ของทูลบาร์ (รันครั้งเดียว)
+(function wireToolbar(){
+  document.getElementById('ttSearchWithin')?.addEventListener('input', () => {
+    clearTimeout(window.__ttFilterTimer);
+    window.__ttFilterTimer = setTimeout(applyTimetableFilter, 200);
+  });
+  document.getElementById('ttReset')?.addEventListener('click', () => {
+    const s = document.getElementById('ttSearchWithin'); if (s) s.value = "";
+    applyTimetableFilter();
+  });
+  // ปุ่มกลับ 2 จุด (ใน header เดิม และใน toolbar)
+  document.getElementById('ttBackBtn2')?.addEventListener('click', showSelectView);
+  document.getElementById('ttBackBtn')?.addEventListener('click', showSelectView);
+})();
+
+function renderCalendar(rows) {
+  const tbl = document.getElementById('tt-calendar');
+  const empty = document.getElementById('tt-calendar-empty');
+  if (!tbl) return;
+
+  // จำนวนคอลัมน์ = จำนวนคาบครึ่งชั่วโมง
+  const SLOTS = __SLOTS;
+  tbl.style.setProperty('--tt-hours', String(SLOTS));
+
+  const blocksByDay = groupToBlocks(rows);
+  const any = Object.values(blocksByDay).some(arr => arr.length);
+  empty?.classList.toggle('d-none', any);
+  if (!any) { tbl.innerHTML = ""; return; }
+
+  // colgroup: 1 คอลัมน์วัน + SLOTS คอลัมน์เวลา
+  let colgroup = '<colgroup><col class="tt-day-col">';
+  for (let i = 0; i < SLOTS; i++) colgroup += '<col class="tt-hour-col">';
+  colgroup += '</colgroup>';
+
+  // thead: แสดง “08.00-08.30 …”
+  let thead = '<thead><tr><th class="sticky-top bg-light">วัน / เวลา</th>';
+  for (let i = 0; i < SLOTS; i++) thead += `<th class="text-center sticky-top bg-light">${slotLabel(i)}</th>`;
+  thead += '</tr></thead>';
+
+  // tbody: วาง td โดยคิด colspan เป็นจำนวนคาบ
+  let tbody = "<tbody>";
+  for (const day of TT_DAY_ORDER) {
+    const blocks = blocksByDay[day] || [];
+    const startIndex = Object.fromEntries(blocks.map(b => [String(b.sh), b]));
+    tbody += `<tr><th class="bg-light">${day}</th>`;
+    for (let s = 0; s < SLOTS; s++) {
+      const b = startIndex[String(s)];
+      if (b) {
+        const span = Math.max(1, b.eh - b.sh);
+        tbody += `<td colspan="${span}">${slotCard(b)}</td>`;
+        s += span - 1;
+      } else {
+        const inside = blocks.some(x => x.sh < s && x.eh > s);
+        if (!inside) tbody += "<td>&nbsp;</td>";
+      }
+    }
+    tbody += "</tr>";
+  }
+  tbody += "</tbody>";
+
+  tbl.innerHTML = colgroup + thead + tbody;
+
+  requestAnimationFrame(() => {
+    document.querySelectorAll('#tt-calendar [data-bs-toggle="tooltip"]').forEach(el => {
+      const t = bootstrap.Tooltip.getInstance(el);
+      if (t) t.dispose();
+      new bootstrap.Tooltip(el);
+    });
+    syncCalendarColumnVars();
+    resizeTimetableRows();
+    setTimeout(() => { syncCalendarColumnVars(); resizeTimetableRows(); }, 0);
+  });
+}
+
+// วัดความกว้างคอลัมน์จริง แล้ว sync เป็นตัวแปรที่ CSS ใช้
+function syncCalendarColumnVars() {
+  const tbl = document.getElementById('tt-calendar');
+  if (!tbl) return;
+
+  // วัดคอลัมน์ "วัน" จากแถวข้อมูลจริง (TBODY)
+  const bodyRow    = tbl.tBodies?.[0]?.rows?.[0];
+  const dayBodyCell= bodyRow?.cells?.[0];
+  const dayHeadCell= tbl.tHead?.rows?.[0]?.cells?.[0];
+  const dayW = Math.round((dayBodyCell || dayHeadCell)?.getBoundingClientRect().width || 140);
+
+  // วัดความกว้างคอลัมน์ชั่วโมงจาก THEAD (ชั่วโมงแรก)
+  const hourHeadCell = tbl.tHead?.rows?.[0]?.cells?.[1];
+  const hourW = Math.round(hourHeadCell?.getBoundingClientRect().width || 120);
+
+  // วัดความสูง THEAD เพื่อยกเส้นลงไปใต้หัวตาราง
+  const theadH = Math.round(tbl.tHead?.getBoundingClientRect().height || 0);
+  
+  tbl.style.setProperty('--tt-daycolw', dayW + 'px');
+  tbl.style.setProperty('--tt-dayw-actual', dayW + 'px');
+  tbl.style.setProperty('--tt-colw',        hourW + 'px');
+  tbl.style.setProperty('--tt-thead-h',     theadH + 'px');
+}
+
+// รวมคาบที่ติดกัน (ต่อเนื่อง) ภายในวันเดียวกัน
+function groupToBlocks(rows) {
+  const byDay = Object.fromEntries(TT_DAY_ORDER.map(d => [d, []]));
+
+  for (const r of rows) {
+    if (!byDay.hasOwnProperty(r.Day)) continue;
+
+    const sm = tToMin(r.StartTime);
+    const em = tToMin(r.StopTime);
+
+    if (Number.isNaN(sm) || Number.isNaN(em)) continue;
+    if (em <= sm) continue;
+
+    // clamp ให้อยู่ในช่วงที่โชว์
+    const sClamped = Math.max(__START_MIN, Math.min(sm, __END_MIN));
+    const eClamped = Math.max(__START_MIN, Math.min(em, __END_MIN));
+
+    let sh = minToSlotFloor(sClamped);
+    let eh = minToSlotCeil(eClamped);     // จบคาบปัดขึ้น
+    sh = Math.max(0, Math.min(sh, __SLOTS));
+    eh = Math.max(0, Math.min(eh, __SLOTS));
+    if (eh <= sh) continue;
+
+    byDay[r.Day].push({ sh, eh, ...r });
+  }
+
+  // รวมคาบติดกันที่เป็นวิชาเดียวกันต่อเนื่อง
+  const merged = {};
+  for (const d of Object.keys(byDay)) {
+    const xs = byDay[d].sort((a,b)=>a.sh-b.sh);
+    const out = [];
+    let cur = null;
+    for (const b of xs) {
+      if (!cur) { cur = {...b}; continue; }
+      const same = cur.Subject_Name===b.Subject_Name &&
+                   cur.Course_Code===b.Course_Code &&
+                   cur.Teacher===b.Teacher &&
+                   cur.Room===b.Room &&
+                   (cur.Type||"") === (b.Type||"");
+      if (same && b.sh <= cur.eh) cur.eh = Math.max(cur.eh, b.eh);
+      else { out.push(cur); cur = {...b}; }
+    }
+    if (cur) out.push(cur);
+    merged[d] = out;
+  }
+  return merged;
+}
+
+// หน้าตาบัตรวิชาในคาบ
+function slotCard(b) {
+  const type = (b.Type||"").toLowerCase();
+  const cls = type.includes("lab") ? "tt-type-lab"
+           : type.includes("seminar") ? "tt-type-seminar"
+           : type.includes("activity") ? "tt-type-activity"
+           : "tt-type-lecture";
+
+  const timeLabel = `${b.StartTime || ""} – ${b.StopTime || ""}`;
+  const teacher   = String(b.Teacher||"").replace(/^อ\./,"") || "-";
+
+  // ใช้ Student_Group เป็น “SEC …” (ถ้าไม่ใช่ N/A), fallback ไป Section
+  const secText = (b.Student_Group && String(b.Student_Group).toUpperCase() !== 'N/A')
+    ? `SEC ${b.Student_Group}`
+    : (b.Section ? String(b.Section).toUpperCase() : "");
+
+  // บนการ์ด: โชว์เฉพาะ “รหัส · SEC · ห้อง”
+  const metaLine = [ b.Course_Code || "", secText, b.Room || "" ]
+    .filter(Boolean).join(" · ");
+
+  // tooltip: โชว์ครบเหมือนเดิม
+  const tooltip = [
+    b.Subject_Name || "—",
+    b.Course_Code ? `(${b.Course_Code})` : "",
+    `เวลา: ${timeLabel}`,
+    `ห้อง: ${b.Room || "-"}`,
+    `ผู้สอน: ${teacher}`,
+    `ประเภท: ${b.Type || "-"}`,
+    b.Student_Group ? `กลุ่ม: ${b.Student_Group}` : "",
+    b.Section ? `Section: ${b.Section}` : ""
+  ].filter(Boolean).join("\n");
+  const tooltipHtml = esc(tooltip).replaceAll('\n','<br>');
+
+  // **ไม่มีชื่อวิชาในการ์ดแล้ว** — เหลือแค่ meta + chip ประเภท
+  return `
+  <div class="tt-slot ${cls}"
+       title="${tooltipHtml}"
+       data-bs-toggle="tooltip"
+       data-bs-placement="top"
+       data-bs-html="true">
+    <div class="tt-body">
+      <div class="tt-meta">${esc(metaLine)}</div>
+    </div>
+    <span class="tt-chip">${esc(b.Type || "—")}</span>
+  </div>`;
+}
+
+function tToMin(t){                 // "HH:MM" -> นาทีตั้งแต่ 00:00
+  if (!t) return NaN;
+  const [hh, mm='0'] = String(t).trim().split(':');
+  const h = parseInt(hh,10), m = parseInt(mm,10);
+  if (Number.isNaN(h) || Number.isNaN(m)) return NaN;
+  return h*60 + m;
+}
+
+const __START_MIN = TT_START.h*60 + TT_START.m;
+const __END_MIN   = TT_END.h*60   + TT_END.m;
+const __SLOTS     = Math.round((__END_MIN - __START_MIN) / TT_SLOT_MIN); // เช่น 25
+
+function minToSlotFloor(min){        // เริ่มคาบ: ปัดลงตามช่วง 30 นาที
+  return Math.floor((min - __START_MIN)/TT_SLOT_MIN);
+}
+function minToSlotCeil(min){         // จบคาบ: ปัดขึ้นตามช่วง 30 นาที
+  return Math.ceil((min - __START_MIN)/TT_SLOT_MIN);
+}
+
+function fmtHMdot(min){              // 480 -> "08.00"
+  const h = Math.floor(min/60), m = min%60;
+  return `${String(h).padStart(2,'0')}.${String(m).padStart(2,'0')}`;
+}
+function slotLabel(idx){             // 0 -> "08.00-08.30"
+  const s = __START_MIN + idx*TT_SLOT_MIN;
+  const e = s + TT_SLOT_MIN;
+  return `${fmtHMdot(s)}-${fmtHMdot(e)}`;
+}
+
+document.getElementById('ttScheduleModal')?.addEventListener('hide.bs.modal', () => {
+  // กลับไปหน้ารายชื่อและให้ controls โชว์เหมือนเดิมทุกครั้งที่ปิดโมดัล
+  showSelectView();
+  document.getElementById('tt-controls')?.classList.remove('d-none');
+});
+
+function resizeTimetableRows() {
+  const modalBody = document.querySelector(
+    '#ttScheduleModal .modal-body'
+  );
+  const toolbar = document.getElementById('tt-toolbar');
+  const tbl = document.getElementById('tt-calendar');
+  if (!modalBody || !tbl) return;
+
+  const theadH = tbl.tHead
+    ? tbl.tHead.getBoundingClientRect().height
+    : 40;
+
+  // พื้นที่แนวตั้งทั้งหมดของส่วนเนื้อหาโมดัล
+  const bodyH = modalBody.getBoundingClientRect().height;
+
+  // ถ้า toolbar โชว์ ให้นำความสูงไปหัก
+  const toolH = (toolbar && !toolbar.classList.contains('d-none'))
+    ? toolbar.getBoundingClientRect().height
+    : 0;
+
+  // เส้นขอบ/ช่องว่างเล็กน้อย
+  const borderY = 8;
+
+  // ความสูงที่ให้ตารางจริง ๆ
+  const availH = bodyH - toolH;
+
+  // คำนวณความสูงต่อแถว (7 วัน)
+  let h = Math.floor((availH - theadH - borderY) / 7);
+
+  // จำกัดช่วงเพื่อความอ่านง่าย
+  h = Math.max(65, Math.min(65, h));
+
+  tbl.style.setProperty('--tt-row-h', h + 'px');
+}
+
+// ---- รวมตัวดัก resize ให้เหลืออันเดียวทั้งไฟล์ ----
+let __ttResizeBound = false;
+function bindTimetableResizeOnce() {
+  if (__ttResizeBound) return;
+  __ttResizeBound = true;
+
+  window.addEventListener('resize', () => {
+    requestAnimationFrame(() => {
+      syncCalendarColumnVars();
+      resizeTimetableRows();
+    });
+  });
+}
+bindTimetableResizeOnce();
+
+/* ===== สร้างตารางสอน (เวอร์ชันเดียว) ===== */
+function generateSchedule() {
+  const modalEl = document.getElementById("processingModal");
+  const modal = new bootstrap.Modal(modalEl, { backdrop: "static", keyboard: false });
+  document.getElementById("processingMessage").textContent = "กำลังประมวลผล...";
+  setModalState("processing");
+  modal.show();
+
+  fetch("/api/schedule/generate/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-CSRFToken": getCookie("csrftoken") },
+  })
+    .then(async (r) => {
+      const d = await r.json().catch(() => ({}));
+      // สำเร็จถ้า HTTP 200 และไม่ได้ส่ง status="error"
+      if (r.ok && (!d.status || d.status === "success")) {
+        setModalState("success");
+      } else {
+        setModalState("error", { message: d.message || "เกิดข้อผิดพลาด" });
+      }
+    })
+    .catch((e) => {
+      console.error(e);
+      setModalState("error", { message: "เกิดข้อผิดพลาดในการสร้างตารางสอน" });
+    });
+}

@@ -12,34 +12,83 @@ function setSelectValue(sel, val) {
   }
 }
 
-// ===== notification system (เหมือน pre.js สไตล์) =====
-function showNotification(message, type='info', duration=5000){
-  const container = document.getElementById('notificationContainer');
-  const notification = document.createElement('div');
-  const typeMap = {success:'success', error:'error', warning:'warning', info:'info', debug:'info'};
-  const notificationType = typeMap[type] || 'info';
-
-  notification.className = `notification ${notificationType}`;
-  notification.innerHTML = `
-    <button class="notification-close" onclick="closeNotification(this)">&times;</button>
-    <div>${message}</div>
-    <div class="notification-progress"></div>
-  `;
-  container.appendChild(notification);
-
-  setTimeout(()=>notification.classList.add('show'),100);
-
-  const progressBar = notification.querySelector('.notification-progress');
-  progressBar.style.width = '100%';
-  setTimeout(()=>{ progressBar.style.width='0%'; progressBar.style.transitionDuration = duration+'ms'; }, 100);
-
-  setTimeout(()=> closeNotification(notification.querySelector('.notification-close')), duration);
+function composeSectionFromNum(n) {
+  const num = String(n ?? '').trim();
+  return num ? `sec${num}` : '';
 }
-function closeNotification(button){
-  const notification = button.parentElement;
-  notification.style.opacity='0';
-  notification.style.transform='translateX(100%)';
-  setTimeout(()=>{ if(notification.parentElement){ notification.parentElement.removeChild(notification); } }, 300);
+function extractSectionNum(sec) {
+  const m = String(sec ?? '').trim().match(/^sec\s*(\d+)$/i);
+  return m ? m[1] : '';
+}
+
+// ----- Delete modals (Course) -----
+let pendingDeleteId = null;
+
+const delModalEl    = document.getElementById('confirmDeleteCourseModal');
+const delAllModalEl = document.getElementById('confirmDeleteAllCourseModal');
+const delNameEl     = document.getElementById('del_course_name');
+const btnConfirmDel = document.getElementById('btnConfirmDeleteCourse');
+const btnConfirmAll = document.getElementById('btnConfirmDeleteAllCourse');
+
+const bsDel    = delModalEl    ? new bootstrap.Modal(delModalEl)    : null;
+const bsDelAll = delAllModalEl ? new bootstrap.Modal(delAllModalEl) : null;
+
+/* ---------- Notifications: Toast แบบเดียวกับ weekactivity ---------- */
+function escapeHtml(s){
+  return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;");
+}
+
+function showToast(kind, title, message){
+  const host = document.getElementById("toastHost");
+  if(!host) return alert(message || title || "");
+  const bg = { success:"bg-success text-white", warning:"bg-warning",
+               danger:"bg-danger text-white", info:"bg-primary text-white" };
+  const headerClass = bg[kind] || "bg-dark text-white";
+
+  const el = document.createElement("div");
+  el.className = "toast align-items-center border-0 shadow overflow-hidden";
+  el.style.borderRadius = "12px";
+  el.setAttribute("role","alert");
+  el.setAttribute("aria-live","assertive");
+  el.setAttribute("aria-atomic","true");
+  el.innerHTML = `
+    <div class="toast-header ${headerClass}">
+      <strong class="me-auto">${escapeHtml(title || "")}</strong>
+      <button type="button" class="btn-close btn-close-white ms-2 mb-1"
+              data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+    <div class="toast-body">${escapeHtml(message || "")}</div>`;
+  host.appendChild(el);
+  new bootstrap.Toast(el, { delay: 3500, autohide: true }).show();
+}
+
+/* ให้โค้ดเดิมที่เรียก showNotification(...) ใช้ต่อได้ */
+function showNotification(message, type = "info", title = null){
+  const map = { success:"success", warning:"warning", error:"danger", info:"info", debug:"info" };
+  const defaults = { success:"สำเร็จ", warning:"คำเตือน", danger:"ผิดพลาด", info:"แจ้งเตือน" };
+  const kind = map[type] || "info";
+  showToast(kind, title ?? defaults[kind] ?? "แจ้งเตือน", message);
+}
+
+function flashToast(msg, type = "info", title = null){
+  try { sessionStorage.setItem("flashToast", JSON.stringify({ msg, type, title })); } catch {}
+}
+function showFlashToastIfAny(){
+  try {
+    const raw = sessionStorage.getItem("flashToast");
+    if (!raw) return;
+    sessionStorage.removeItem("flashToast");
+    const { msg, type, title } = JSON.parse(raw);
+    showNotification(msg, type || "info", title);
+  } catch {}
+}
+
+// ให้ทำงานตอน DOM พร้อม
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", showFlashToastIfAny);
+} else {
+  showFlashToastIfAny();
 }
 
 // ===== csrf helper =====
@@ -117,7 +166,7 @@ function addCourse(){
     subject_code_course        : document.getElementById("subject_code_select").value,
     subject_name_course        : document.getElementById("subject_name_select").value,
     room_type_course           : document.getElementById("room_type_select").value,
-    section_course             : document.getElementById("section").value,
+    section_course             : composeSectionFromNum(document.getElementById("section_num").value),
     student_group_id           : document.getElementById("student_group_select").value,
     theory_slot_amount_course  : Number(document.getElementById("theory_hours").value || 0),
     lab_slot_amount_course     : Number(document.getElementById("lab_hours").value || 0)
@@ -135,7 +184,7 @@ function addCourse(){
   })
   .then(r=>r.json())
   .then(d=>{
-    if(d.status==='success'){ showNotification('✅ เพิ่มข้อมูลรายวิชาสำเร็จ','success'); location.reload(); }
+    if(d.status==='success'){flashToast('เพิ่มข้อมูลรายวิชาสำเร็จ','success','เพิ่มสำเร็จ'); location.reload(); }
     else{ showNotification('เกิดข้อผิดพลาด: '+(d.message||'ไม่สามารถเพิ่มข้อมูลได้'),'error'); }
   })
   .catch(()=> showNotification('เกิดข้อผิดพลาดในการเพิ่มข้อมูล','error'));
@@ -143,22 +192,56 @@ function addCourse(){
 
 // ===== ลบ =====
 function confirmDelete(button){
-  if(confirm("คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้?")){
-    const row = button.closest("tr");
-    const id  = row.getAttribute("data-id");
+  const row  = button.closest("tr");
+  const id   = row.getAttribute("data-id");
+  const name = row.querySelector("td")?.innerText?.trim() || "รายวิชา";
 
+  if (bsDel && btnConfirmDel) {
+    pendingDeleteId = id;
+    if (delNameEl) delNameEl.textContent = name;
+    bsDel.show();
+
+    const handler = async () => {
+      try {
+        btnConfirmDel.disabled = true;
+        const r = await fetch(`/api/course/delete/${pendingDeleteId}/`, {
+          method:'DELETE',
+          headers:{ 'X-CSRFToken': getCookie('csrftoken') }
+        });
+        const d = await r.json();
+        if (d.status === 'success') {
+          flashToast('ลบข้อมูลเรียบร้อยแล้ว','success','ลบสำเร็จ');
+          location.reload();
+          bsDel.hide();
+          row.remove(); // หรือใช้ flashToast + reload ก็ได้
+        } else {
+          showNotification('เกิดข้อผิดพลาดในการลบข้อมูล','error','ลบไม่สำเร็จ');
+        }
+      } catch {
+        showNotification('เกิดข้อผิดพลาดในการลบข้อมูล','error','ลบไม่สำเร็จ');
+      } finally {
+        btnConfirmDel.disabled = false;
+        btnConfirmDel.removeEventListener('click', handler);
+        pendingDeleteId = null;
+      }
+    };
+    btnConfirmDel.addEventListener('click', handler, { once:true });
+  } else {
+    // fallback เดิม (ถ้าไม่มี modal)
+    if(!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้?")) return;
     fetch(`/api/course/delete/${id}/`, {
       method:'DELETE',
       headers:{ 'X-CSRFToken': getCookie('csrftoken') }
     })
     .then(r=>r.json())
     .then(d=>{
-      if(d.status==='success'){ row.remove(); showNotification("✅ ลบข้อมูลเรียบร้อยแล้ว",'success'); }
-      else{ showNotification('เกิดข้อผิดพลาดในการลบข้อมูล','error'); }
+      if(d.status==='success'){ row.remove(); flashToast('ลบข้อมูลเรียบร้อยแล้ว','success','ลบสำเร็จ'); }
+      else{ showNotification('เกิดข้อผิดพลาดในการลบข้อมูล','error','ลบไม่สำเร็จ'); }
     })
-    .catch(()=> showNotification('เกิดข้อผิดพลาดในการลบข้อมูล','error'));
+    .catch(()=> showNotification('เกิดข้อผิดพลาดในการลบข้อมูล','error','ลบไม่สำเร็จ'));
   }
 }
+
 
 // ===== แก้ไข =====
 let editRow = null;
@@ -173,7 +256,7 @@ function openEditModal(button){
   setSelectValue(document.getElementById("editSubjectCodeSelect"), cells[1].querySelector('.badge').innerText.trim());
   setSelectValue(document.getElementById("editSubjectNameSelect"), cells[2].innerText.trim());
   setSelectValue(document.getElementById("editRoomTypeSelect"), cells[3].innerText.trim());
-  document.getElementById("editSection").value = cells[4].innerText.trim();
+  document.getElementById("editSectionNum").value = extractSectionNum(cells[4].innerText.trim());
   setSelectValue(document.getElementById("editStudentGroupSelect"), cells[5].innerText.trim());
   document.getElementById("editTheoryHours").value = Number(cells[6].innerText.trim()) || 0;
   document.getElementById("editLabHours").value = Number(cells[7].innerText.trim()) || 0;
@@ -187,7 +270,7 @@ function saveEdit(){
     subject_code_course        : document.getElementById("editSubjectCodeSelect").value,
     subject_name_course        : document.getElementById("editSubjectNameSelect").value,
     room_type_course           : document.getElementById("editRoomTypeSelect").value,
-    section_course             : document.getElementById("editSection").value,
+    section_course             : composeSectionFromNum(document.getElementById("editSectionNum").value),
     student_group_id           : document.getElementById("editStudentGroupSelect").value,
     theory_slot_amount_course  : Number(document.getElementById("editTheoryHours").value || 0),
     lab_slot_amount_course     : Number(document.getElementById("editLabHours").value || 0)
@@ -201,7 +284,7 @@ function saveEdit(){
   .then(r=>r.json())
   .then(d=>{
     if(d.status==='success'){
-      showNotification("✅ แก้ไขข้อมูลเรียบร้อยแล้ว",'success');
+      flashToast('แก้ไขข้อมูลเรียบร้อยแล้ว','success','แก้ไขสำเร็จ');
       bootstrap.Modal.getInstance(document.getElementById("editModal")).hide();
       location.reload();
     }else{
@@ -230,26 +313,58 @@ document.addEventListener('DOMContentLoaded', async () => {
   wireSubjectCodeNameSync('editSubjectCodeSelect','editSubjectNameSelect');
   await populateSelect('/api/lookups/room-types/','editRoomTypeSelect', i => ({ value: i.name, label: i.name }));
   await populateSelect('/api/lookups/student-groups/','editStudentGroupSelect', i => ({ value: i.name, label: i.name }));
-
-  showNotification("ยินดีต้อนรับสู่หน้าจัดการข้อมูลรายวิชา", 'info');
 });
 
 // ===== ลบทั้งหมด =====
 function deleteAllCourses(){
-  if(!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลรายวิชาทั้งหมด?")) return;
+  if (bsDelAll && btnConfirmAll) {
+    bsDelAll.show();
 
-  fetch('/api/course/delete-all/', {
-    method:'DELETE',
-    headers:{ 'X-CSRFToken': getCookie('csrftoken') }
-  })
-  .then(r=>r.json())
-  .then(d=>{
-    if(d.status==='success'){
-      showNotification("✅ ลบข้อมูลรายวิชาทั้งหมดเรียบร้อยแล้ว",'success');
-      location.reload();
-    }else{
-      showNotification('เกิดข้อผิดพลาดในการลบทั้งหมด: '+(d.message||''),'error');
-    }
-  })
-  .catch(()=> showNotification('เกิดข้อผิดพลาดในการลบข้อมูลทั้งหมด','error'));
+    const handler = async () => {
+      try {
+        btnConfirmAll.disabled = true;
+        const r = await fetch('/api/course/delete-all/', {
+          method:'DELETE',
+          headers:{ 'X-CSRFToken': getCookie('csrftoken') }
+        });
+        const d = await r.json();
+        if (d.status === 'success') {
+          flashToast('ลบข้อมูลรายวิชาทั้งหมดเรียบร้อยแล้ว','success','ลบทั้งหมดสำเร็จ');
+          bsDelAll.hide();
+          location.reload(); // หรือจะเคลียร์ตารางด้วย JS ก็ได้
+        } else {
+          showNotification('เกิดข้อผิดพลาดในการลบทั้งหมด: '+(d.message||''),'error','ลบไม่สำเร็จ');
+        }
+      } catch {
+        showNotification('เกิดข้อผิดพลาดในการลบข้อมูลทั้งหมด','error','ลบไม่สำเร็จ');
+      } finally {
+        btnConfirmAll.disabled = false;
+        btnConfirmAll.removeEventListener('click', handler);
+      }
+    };
+    btnConfirmAll.addEventListener('click', handler, { once:true });
+  } else {
+    // fallback เดิม
+    if(!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลรายวิชาทั้งหมด?")) return;
+    fetch('/api/course/delete-all/', {
+      method:'DELETE',
+      headers:{ 'X-CSRFToken': getCookie('csrftoken') }
+    })
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.status==='success'){
+        flashToast('ลบข้อมูลรายวิชาทั้งหมดเรียบร้อยแล้ว','success','ลบทั้งหมดสำเร็จ');
+        location.reload();
+      }else{
+        showNotification('เกิดข้อผิดพลาดในการลบทั้งหมด: '+(d.message||''),'error','ลบไม่สำเร็จ');
+      }
+    })
+    .catch(()=> showNotification('เกิดข้อผิดพลาดในการลบข้อมูลทั้งหมด','error','ลบไม่สำเร็จ'));
+  }
 }
+
+window.addCourse         = addCourse;
+window.openEditModal     = openEditModal;
+window.saveEdit          = saveEdit;
+window.confirmDelete     = confirmDelete;
+window.deleteAllCourses  = deleteAllCourses;

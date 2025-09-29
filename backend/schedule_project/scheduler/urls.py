@@ -2,12 +2,14 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    
     # หน้าเว็บหลัก
     path("", views.home, name="home"),
     path("pre/", views.pre_page, name="pre"),
     path("course/", views.course_page, name="course"),
     path("weekactivity/", views.activity_page, name="weekactivity"),
     path("add/", views.add_info, name="add"),
+    
     # APIs ที่มีอยู่แล้ว...
     path("api/test-program/", views.test_program_api, name="test_program_api"),
     path(
@@ -30,6 +32,8 @@ urlpatterns = [
     ),
     path("api/schedule/list/", views.list_generated_entities_api, name="schedule_list"),
     path("api/schedule/detail/", views.schedule_detail_api, name="schedule_detail"),
+    path('api/schedule/timetable/', views.timetable_by_entity, name='timetable_by_entity'),
+    
     # Pre-Schedule APIs
     path("api/pre/", views.get_pre, name="get_pre"),
     path("api/pre/add/", views.add_pre, name="add_pre"),
@@ -37,6 +41,7 @@ urlpatterns = [
     path("api/pre/delete/<int:id>/", views.delete_pre, name="delete_pre"),
     path("upload/pre-csv/", views.upload_pre_csv, name="upload_pre_csv"),
     path("api/pre/delete-all/", views.pre_delete_all, name="pre_delete_all"),
+    
     # Course APIs
     path("api/course/", views.get_courses, name="get_course"),
     path("api/course/add/", views.add_course, name="add_course"),
@@ -45,6 +50,7 @@ urlpatterns = [
     path("api/course/delete/<int:id>/", views.delete_course, name="delete_course"),
     path("upload/course-csv/", views.upload_course_csv, name="upload_course_csv"),
     path("api/course/delete-all/", views.course_delete_all, name="course_delete_all"),
+    
     # Lookups for course.js
     path("api/teachers/", views.teachers_lookup, name="teachers_lookup"),
     path("api/lookups/room-types/", views.room_types_lookup, name="room_types_lookup"),
@@ -53,6 +59,7 @@ urlpatterns = [
         views.student_groups_lookup,
         name="student_groups_lookup",
     ),
+    
     # Weekactivity APIs
     path("api/activity/", views.get_activity, name="get_activity"),
     path("api/activity/add/", views.add_activity, name="add_activity"),
@@ -63,7 +70,6 @@ urlpatterns = [
     path(
         "api/activity/delete/<int:id>/", views.delete_activity, name="delete_activity"
     ),
-    path("upload/activity-csv/", views.upload_activity_csv, name="upload_activity_csv"),
     path("api/meta/days/", views.meta_days, name="meta_days"),
     path("api/meta/start-times/", views.meta_start_times, name="meta_start_times"),
     path("api/meta/stop-times/", views.meta_stop_times, name="meta_stop_times"),
@@ -72,6 +78,7 @@ urlpatterns = [
         views.activity_delete_all,
         name="activity_delete_all",
     ),
+    
     # AddPIS
     path("subject/", views.subject, name="subject"),
     path("teacher/", views.teacher, name="teacher"),
@@ -81,6 +88,7 @@ urlpatterns = [
     path("room/", views.room, name="room"),
     path("roomtype/", views.roomtype, name="roomtype"),
     path("timeslot/", views.timeslot, name="timeslot"),
+    
     # GroupAllow APIs
     path("api/groupallow/list/", views.groupallow_list, name="groupallow_list"),
     path("api/groupallow/add/", views.groupallow_add, name="groupallow_add"),
@@ -94,6 +102,8 @@ urlpatterns = [
         views.groupallow_delete_all,
         name="groupallow_delete_all",
     ),  # 👈 เพิ่ม
+    path("api/groupallow/update/<int:pk>/", views.groupallow_update, name="groupallow_update"),
+    
     # --- GroupType APIs ---
     path("api/grouptype/list/", views.grouptype_list, name="grouptype_list"),
     path("api/grouptype/add/", views.grouptype_add, name="grouptype_add"),
@@ -107,11 +117,16 @@ urlpatterns = [
         views.grouptype_delete_all,
         name="grouptype_delete_all",
     ),
+    # เพิ่มบรรทัดนี้ในส่วน --- GroupType APIs ---
+    path("api/grouptype/update/<int:pk>/", views.grouptype_update, name="grouptype_update"),
+
+    
     # --- Room APIs ---
     path("api/room/list/", views.room_list, name="room_list"),
     path("api/room/add/", views.room_add, name="room_add"),
     path("api/room/delete/<int:pk>/", views.room_delete, name="room_delete"),
     path("api/room/delete-all/", views.room_delete_all, name="room_delete_all"),
+    
     # --- RoomType APIs ---
     path("api/roomtype/list/", views.roomtype_list, name="roomtype_list"),
     path("api/roomtype/add/", views.roomtype_add, name="roomtype_add"),
@@ -123,6 +138,7 @@ urlpatterns = [
         views.roomtype_delete_all,
         name="roomtype_delete_all",
     ),  # ✅
+    
     # --- StudentGroup APIs ---
     path("api/studentgroup/list/", views.studentgroup_list, name="studentgroup_list"),
     path("api/studentgroup/add/", views.studentgroup_add, name="studentgroup_add"),
@@ -136,12 +152,17 @@ urlpatterns = [
         views.studentgroup_delete_all,
         name="studentgroup_delete_all",
     ),
+    # urls.py
+    path("api/studentgroup/update/<int:pk>/", views.studentgroup_update, name="studentgroup_update"),
+
+    
     # Subject (RESTful)
     path("api/subjects/", views.subjects_collection, name="subjects_collection"),
     path("api/subjects/<int:pk>/", views.subjects_detail, name="subjects_detail"),
     path(
         "api/subjects/delete-all/", views.subject_delete_all, name="subject_delete_all"
     ),
+    
     # --- Teacher APIs ---
     path("api/teacher/list/", views.teacher_list, name="teacher_list"),
     path("api/teacher/add/", views.teacher_add, name="teacher_add"),
@@ -150,6 +171,7 @@ urlpatterns = [
         "api/teacher/delete-all/", views.teacher_delete_all, name="teacher_delete_all"
     ),
     path("api/teacher/delete/<int:pk>/", views.teacher_delete, name="teacher_delete"),
+    
     # --- TimeSlot APIs ---
     path("api/timeslot/list/", views.timeslot_list, name="timeslot_list"),
     path("api/timeslot/add/", views.timeslot_add, name="timeslot_add"),

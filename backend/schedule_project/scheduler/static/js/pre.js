@@ -21,6 +21,31 @@ function setSelectValue(sel, val) {
   }
 }
 
+// แปลงเลข -> สตริงกลุ่มเรียน เช่น "1" => "sec1"
+function composeSectionFromNum(n) {
+  const s = String(n || "").trim();
+  return s ? `sec${s}` : "";
+}
+
+// แปลงสตริงกลุ่มเรียน -> เลข เช่น "sec 12" => "12"
+function parseSectionToNum(secText) {
+  if (secText == null) return "";
+  const m = String(secText).trim().match(/^sec\s*(\d+)$/i);
+  return m ? m[1] : "";
+}
+
+// ----- Delete modals (Pre) -----
+let pendingDeleteId = null;
+
+const delModalEl    = document.getElementById('confirmDeletePreModal');
+const delAllModalEl = document.getElementById('confirmDeleteAllPreModal');
+const delNameEl     = document.getElementById('del_pre_name');
+const btnConfirmDel = document.getElementById('btnConfirmDeletePre');
+const btnConfirmAll = document.getElementById('btnConfirmDeleteAllPre');
+
+const bsDel    = delModalEl    ? new bootstrap.Modal(delModalEl)    : null;
+const bsDelAll = delAllModalEl ? new bootstrap.Modal(delAllModalEl) : null;
+
 // ===== time utilities =====
 function hhmmToMinutes(hhmm) {
   if (!hhmm) return null;
@@ -41,49 +66,60 @@ function calcEnd(startStr, hoursStr) {
 }
 
 // ===== notification system =====
-function showNotification(message, type = "info", duration = 5000) {
-  const container = document.getElementById("notificationContainer");
-  const notification = document.createElement("div");
-  const typeMap = {
-    success: "success",
-    error: "error",
-    warning: "warning",
-    info: "info",
-    debug: "info",
-  };
-  const notificationType = typeMap[type] || "info";
-
-  notification.className = `notification ${notificationType}`;
-  notification.innerHTML = `
-    <button class="notification-close" onclick="closeNotification(this)">&times;</button>
-    <div>${message}</div>
-    <div class="notification-progress"></div>
-  `;
-  container.appendChild(notification);
-
-  setTimeout(() => notification.classList.add("show"), 100);
-
-  const progressBar = notification.querySelector(".notification-progress");
-  progressBar.style.width = "100%";
-  setTimeout(() => {
-    progressBar.style.width = "0%";
-    progressBar.style.transitionDuration = duration + "ms";
-  }, 100);
-
-  setTimeout(
-    () => closeNotification(notification.querySelector(".notification-close")),
-    duration
-  );
+function escapeHtml(s){
+  return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;");
 }
-function closeNotification(button) {
-  const notification = button.parentElement;
-  notification.style.opacity = "0";
-  notification.style.transform = "translateX(100%)";
-  setTimeout(() => {
-    if (notification.parentElement) {
-      notification.parentElement.removeChild(notification);
-    }
-  }, 300);
+
+function showToast(kind, title, message){
+  const host = document.getElementById("toastHost");
+  if(!host) return alert(message || title || "");
+  const bg = { success:"bg-success text-white", warning:"bg-warning",
+               danger:"bg-danger text-white", info:"bg-primary text-white" };
+  const headerClass = bg[kind] || "bg-dark text-white";
+
+  const el = document.createElement("div");
+  el.className = "toast align-items-center border-0 shadow overflow-hidden";
+  el.style.borderRadius = "12px";
+  el.setAttribute("role","alert");
+  el.setAttribute("aria-live","assertive");
+  el.setAttribute("aria-atomic","true");
+  el.innerHTML = `
+    <div class="toast-header ${headerClass}">
+      <strong class="me-auto">${escapeHtml(title || "")}</strong>
+      <button type="button" class="btn-close btn-close-white ms-2 mb-1"
+              data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+    <div class="toast-body">${escapeHtml(message || "")}</div>`;
+  host.appendChild(el);
+  new bootstrap.Toast(el, { delay: 3500, autohide: true }).show();
+}
+
+/* ให้เรียกชื่อเดิม showNotification ได้เหมือนหน้าอื่น */
+function showNotification(message, type = "info", title = null){
+  const map = { success:"success", warning:"warning", error:"danger", info:"info", debug:"info" };
+  const defaults = { success:"สำเร็จ", warning:"คำเตือน", danger:"ผิดพลาด", info:"แจ้งเตือน" };
+  const kind = map[type] || "info";
+  showToast(kind, title ?? defaults[kind] ?? "แจ้งเตือน", message);
+}
+
+/* flashToast สำหรับกรณี reload แล้วอยากให้ toast โผล่หลังโหลดเสร็จ */
+function flashToast(msg, type = "info", title = null){
+  try { sessionStorage.setItem("flashToast", JSON.stringify({ msg, type, title })); } catch {}
+}
+function showFlashToastIfAny(){
+  try {
+    const raw = sessionStorage.getItem("flashToast");
+    if (!raw) return;
+    sessionStorage.removeItem("flashToast");
+    const { msg, type, title } = JSON.parse(raw);
+    showNotification(msg, type || "info", title);
+  } catch {}
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", showFlashToastIfAny);
+} else {
+  showFlashToastIfAny();
 }
 
 // ===== csrf helper =====
@@ -189,6 +225,14 @@ function wireSubjectCodeNameSync(codeSelId, nameSelId) {
 
 // ===== CRUD functions =====
 function addPreSchedule() {
+  const sectionNum = (document.getElementById('pre_section_num').value || '').trim();
+  const section_pre = composeSectionFromNum(sectionNum);
+
+  if (!section_pre) {
+    showNotification('กรุณากรอกกลุ่มเรียน (ตัวเลขหลัง sec)', 'warning');
+    return;
+  }
+
   const payload = {
     teacher_name_pre: document.getElementById("teacher_name_pre").value,
     subject_code_pre: document.getElementById("subject_code_pre").value,
@@ -197,7 +241,7 @@ function addPreSchedule() {
     type_pre: document.getElementById("type_pre").value,
     student_group_name_pre: document.getElementById("student_group_pre").value,
     hours_pre: Number(document.getElementById("hours_pre").value || 0),
-    section_pre: document.getElementById("section_pre").value,
+    section_pre,
     day_pre: document.getElementById("day_pre").value,
     start_time_pre: document.getElementById("start_time_pre").value,
     stop_time_pre: document.getElementById("stop_time_pre").value,
@@ -220,7 +264,7 @@ function addPreSchedule() {
     .then((r) => r.json())
     .then((d) => {
       if (d.status === "success") {
-        showNotification("✅ เพิ่มวิชาล่วงหน้าสำเร็จ", "success");
+        flashToast("เพิ่มวิชาล่วงหน้าสำเร็จ", "success", "เพิ่มสำเร็จ");
         location.reload();
       } else {
         showNotification(
@@ -232,25 +276,57 @@ function addPreSchedule() {
     .catch(() => showNotification("เกิดข้อผิดพลาดในการเพิ่มข้อมูล", "error"));
 }
 
-function confirmDelete(button) {
-  if (confirm("คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้?")) {
-    const row = button.closest("tr");
-    const id = row.getAttribute("data-id");
+function confirmDelete(button){
+  const row  = button.closest("tr");
+  const id   = row.getAttribute("data-id");
+  const name = row.querySelector("td")?.innerText?.trim() || "วิชาล่วงหน้า";
 
+  if (bsDel && btnConfirmDel) {
+    pendingDeleteId = id;
+    if (delNameEl) delNameEl.textContent = name;
+    bsDel.show();
+
+    const handler = async () => {
+      try {
+        btnConfirmDel.disabled = true;
+        const r = await fetch(`/api/pre/delete/${pendingDeleteId}/`, {
+          method: "DELETE",
+          headers: { "X-CSRFToken": getCookie("csrftoken"), "Accept": "application/json" },
+        });
+        const d = await r.json();
+        if (d.status === "success") {
+          showNotification("ลบข้อมูลเรียบร้อยแล้ว", "success", "ลบสำเร็จ");
+          bsDel.hide();
+          row.remove();
+        } else {
+          showNotification("เกิดข้อผิดพลาดในการลบข้อมูล", "error", "ลบไม่สำเร็จ");
+        }
+      } catch {
+        showNotification("เกิดข้อผิดพลาดในการลบข้อมูล", "error", "ลบไม่สำเร็จ");
+      } finally {
+        btnConfirmDel.disabled = false;
+        btnConfirmDel.removeEventListener("click", handler);
+        pendingDeleteId = null;
+      }
+    };
+    btnConfirmDel.addEventListener("click", handler, { once: true });
+  } else {
+    // fallback ถ้าไม่มี modal
+    if (!confirm("ต้องการลบรายการนี้ใช่ไหม?")) return;
     fetch(`/api/pre/delete/${id}/`, {
       method: "DELETE",
       headers: { "X-CSRFToken": getCookie("csrftoken") },
     })
-      .then((r) => r.json())
-      .then((d) => {
+      .then(r => r.json())
+      .then(d => {
         if (d.status === "success") {
           row.remove();
-          showNotification("✅ ลบข้อมูลเรียบร้อยแล้ว", "success");
+          showNotification("ลบข้อมูลเรียบร้อยแล้ว", "success", "ลบสำเร็จ");
         } else {
-          showNotification("เกิดข้อผิดพลาดในการลบข้อมูล", "error");
+          showNotification("เกิดข้อผิดพลาดในการลบข้อมูล", "error", "ลบไม่สำเร็จ");
         }
       })
-      .catch(() => showNotification("เกิดข้อผิดพลาดในการลบข้อมูล", "error"));
+      .catch(() => showNotification("เกิดข้อผิดพลาดในการลบข้อมูล", "error", "ลบไม่สำเร็จ"));
   }
 }
 
@@ -259,72 +335,55 @@ let editId = null;
 
 async function openEditModal(button) {
   editRow = button.closest("tr");
-  editId = editRow.getAttribute("data-id");
+  editId  = editRow.getAttribute("data-id");
   const cells = editRow.getElementsByTagName("td");
 
-  setSelectValue(
-    document.getElementById("editteacher_name_pre"),
-    cells[0].innerText.trim()
-  );
-  setSelectValue(
-    document.getElementById("editsubject_code_pre"),
-    cells[1].innerText.trim()
-  );
-  setSelectValue(
-    document.getElementById("editsubject_name_pre"),
-    cells[2].innerText.trim()
-  );
-  setSelectValue(
-    document.getElementById("editsubject_type_pre"),
-    cells[3].innerText.trim()
-  );
-  setSelectValue(
-    document.getElementById("edittype_pre"),
-    cells[4].innerText.trim()
-  );
-  setSelectValue(
-    document.getElementById("editstudent_group_pre"),
-    cells[5].innerText.trim()
-  );
+  setSelectValue(document.getElementById("editteacher_name_pre"), cells[0].innerText.trim());
+  setSelectValue(document.getElementById("editsubject_code_pre"),  cells[1].innerText.trim());
+  setSelectValue(document.getElementById("editsubject_name_pre"),  cells[2].innerText.trim());
+  setSelectValue(document.getElementById("editsubject_type_pre"),  cells[3].innerText.trim());
+  setSelectValue(document.getElementById("edittype_pre"),         cells[4].innerText.trim());
+  setSelectValue(document.getElementById("editstudent_group_pre"), cells[5].innerText.trim());
 
   document.getElementById("edithours_pre").value = cells[6].innerText.trim();
-  document.getElementById("editsection_pre").value = cells[7].innerText.trim();
 
-  setSelectValue(
-    document.getElementById("editday_pre"),
-    cells[8].innerText.trim()
-  );
+  // ✅ แก้ id ให้ตรงกับ HTML: edit_pre_section_num
+  const secText = (cells[7].querySelector('.badge')?.innerText || cells[7].innerText).trim();
+  document.getElementById("edit_pre_section_num").value = parseSectionToNum(secText);
+
+  setSelectValue(document.getElementById("editday_pre"), cells[8].innerText.trim());
   await loadStartTimesForEdit();
-  setSelectValue(
-    document.getElementById("editstart_time_pre"),
-    cells[9].innerText.trim()
-  );
+  setSelectValue(document.getElementById("editstart_time_pre"), cells[9].innerText.trim());
 
   await loadStopTimesForEdit();
-  setSelectValue(
-    document.getElementById("editstop_time_pre"),
-    cells[10].innerText.trim()
-  );
+  setSelectValue(document.getElementById("editstop_time_pre"), cells[10].innerText.trim());
 
-  setSelectValue(
-    document.getElementById("editroom_name_pre"),
-    cells[11].innerText.trim()
-  );
+  setSelectValue(document.getElementById("editroom_name_pre"), cells[11].innerText.trim());
 
   new bootstrap.Modal(document.getElementById("editModal")).show();
 }
 
 function saveEdit() {
+  // ✅ อ่านเลขจากช่องใหม่ แล้วประกอบเป็น "secX"
+  const sectionNum  = (document.getElementById('edit_pre_section_num').value || '').trim();
+  const section_pre = composeSectionFromNum(sectionNum);
+
+  if (!section_pre) {
+    showNotification('กรุณากรอกกลุ่มเรียน (ตัวเลขหลัง sec)', 'warning');
+    return;
+  }
+
   const payload = {
     teacher_name_pre: document.getElementById("editteacher_name_pre").value,
     subject_code_pre: document.getElementById("editsubject_code_pre").value,
     subject_name_pre: document.getElementById("editsubject_name_pre").value,
     room_type_pre: document.getElementById("editsubject_type_pre").value,
     type_pre: document.getElementById("edittype_pre").value,
-    student_group_name_pre: document.getElementById("editstudent_group_pre")
-      .value,
+    student_group_name_pre: document.getElementById("editstudent_group_pre").value,
     hours_pre: Number(document.getElementById("edithours_pre").value || 0),
-    section_pre: document.getElementById("editsection_pre").value,
+    // ❌ เดิม: section_pre: document.getElementById("editsection_pre").value,
+    // ✅ ใหม่:
+    section_pre,
     day_pre: document.getElementById("editday_pre").value,
     start_time_pre: document.getElementById("editstart_time_pre").value,
     stop_time_pre: document.getElementById("editstop_time_pre").value,
@@ -342,10 +401,8 @@ function saveEdit() {
     .then((r) => r.json())
     .then((d) => {
       if (d.status === "success") {
-        showNotification("✅ แก้ไขข้อมูลเรียบร้อยแล้ว", "success");
-        bootstrap.Modal.getInstance(
-          document.getElementById("editModal")
-        ).hide();
+        flashToast("แก้ไขข้อมูลเรียบร้อยแล้ว", "success", "แก้ไขสำเร็จ");
+        bootstrap.Modal.getInstance(document.getElementById("editModal")).hide();
         location.reload();
       } else {
         showNotification("เกิดข้อผิดพลาดในการแก้ไขข้อมูล", "error");
@@ -354,25 +411,52 @@ function saveEdit() {
     .catch(() => showNotification("เกิดข้อผิดพลาดในการแก้ไขข้อมูล", "error"));
 }
 
-function deleteAllPre() {
-  if (!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลวิชาล่วงหน้าทั้งหมด?")) return;
+function deleteAllPre(){
+  if (bsDelAll && btnConfirmAll) {
+    bsDelAll.show();
 
-  fetch("/api/pre/delete-all/", {
-    method: "DELETE",
-    headers: { "X-CSRFToken": getCookie("csrftoken") },
-  })
-    .then((r) => r.json())
-    .then((d) => {
-      if (d.status === "success") {
-        showNotification("✅ ลบข้อมูลวิชาล่วงหน้าทั้งหมดเรียบร้อยแล้ว", "success");
+    const handler = async () => {
+      try {
+        btnConfirmAll.disabled = true;
+        const r = await fetch('/api/pre/delete-all/', {
+          method: 'DELETE',
+          headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Accept': 'application/json' }
+        });
+        const d = await r.json();
+        if (d.status === 'success') {
+          showNotification('ลบวิชาล่วงหน้าทั้งหมดเรียบร้อยแล้ว', 'success', 'ลบทั้งหมดสำเร็จ');
+          bsDelAll.hide();
+          location.reload();
+        } else {
+          showNotification('เกิดข้อผิดพลาดในการลบทั้งหมด', 'error', 'ลบไม่สำเร็จ');
+        }
+      } catch {
+        showNotification('เกิดข้อผิดพลาดในการลบทั้งหมด', 'error', 'ลบไม่สำเร็จ');
+      } finally {
+        btnConfirmAll.disabled = false;
+        btnConfirmAll.removeEventListener('click', handler);
+      }
+    };
+    btnConfirmAll.addEventListener('click', handler, { once:true });
+  } else {
+    // fallback ถ้าไม่มี modal
+    if(!confirm("ต้องการลบข้อมูลทั้งหมดใช่ไหม?")) return;
+    fetch('/api/pre/delete-all/', {
+      method:'DELETE',
+      headers:{ 'X-CSRFToken': getCookie('csrftoken') }
+    })
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.status==='success'){
+        showNotification('ลบวิชาล่วงหน้าทั้งหมดเรียบร้อยแล้ว','success','ลบทั้งหมดสำเร็จ');
         location.reload();
-      } else {
-        showNotification("เกิดข้อผิดพลาด: " + (d.message || "ไม่สามารถลบทั้งหมดได้"), "error");
+      }else{
+        showNotification('เกิดข้อผิดพลาดในการลบทั้งหมด','error','ลบไม่สำเร็จ');
       }
     })
-    .catch(() => showNotification("เกิดข้อผิดพลาดในการลบทั้งหมด", "error"));
+    .catch(()=> showNotification('เกิดข้อผิดพลาดในการลบทั้งหมด','error','ลบไม่สำเร็จ'));
+  }
 }
-
 
 // ===== init wiring =====
 document.addEventListener("DOMContentLoaded", async () => {
@@ -424,7 +508,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     .getElementById("start_time_pre")
     ?.addEventListener("change", loadStopTimesForCreate);
 
-  // Modal
+  // ------ Modal dropdowns ------
   await populateSelect("/api/teachers/", "editteacher_name_pre", (t) => ({
     value: t.name,
     label: t.name,
