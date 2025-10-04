@@ -15,6 +15,15 @@ from collections import defaultdict
 
 from tabulate import tabulate
 
+# main.py (ด้านบนสุด ใกล้ๆ import)
+class GenerationCancelled(Exception):
+    """โยนเมื่อมีการยกเลิกกลางคัน"""
+    pass
+
+def _check_cancel(cancel_event):
+    if cancel_event and cancel_event.is_set():
+        raise GenerationCancelled()
+
 
 def _qs_to_df(qs, fields):
     """แปลง QuerySet ของ Django → DataFrame ของ pandas"""
@@ -361,6 +370,7 @@ def initialize_population(
     ga_free: pd.DataFrame,
     pop_size,
     seed=42,
+    cancel_event=None,
 ):
     """
     สร้างประชากรเริ่มต้น:
@@ -412,6 +422,7 @@ def initialize_population(
         return str(x).strip().lower() if pd.notna(x) else ""
 
     for _ in range(pop_size):
+        _check_cancel(cancel_event)
         work_courses = courses.copy().reset_index(drop=True)
         work_ga = ga_free.copy().reset_index(drop=True)
         individual = []
@@ -426,6 +437,7 @@ def initialize_population(
         rng.shuffle(grouped)
 
         for gkey, df_units in grouped:
+            _check_cancel(cancel_event)
             (
                 sub_code,
                 sub_name,
@@ -464,6 +476,7 @@ def initialize_population(
             for _, slot in candidate.iterrows():
                 if len(placed_rows) >= hours_needed:
                     break
+                _check_cancel(cancel_event)
                 new_row = {
                     "subject_code": sub_code,
                     "subject_name": sub_name,
@@ -537,44 +550,33 @@ def initialize_population(
                         mask &= work_courses[col] == val
                 work_courses = work_courses[~mask].reset_index(drop=True)
             else:
+                print("❌ ไม่สามารถวางครบได้:", gkey)
+                print("  hours_needed:", hours_needed, "แต่ได้จริง:", len(placed_rows))
+                print("  placed_rows:")
                 for r in placed_rows:
-                    teacher_busy.discard(
-                        (
-                            r["teacher"],
-                            r["day_of_week"],
-                            r["start_time"],
-                            r["stop_time"],
-                        )
-                    )
-                    student_busy.discard(
-                        (
-                            r["student_group"],
-                            r["day_of_week"],
-                            r["start_time"],
-                            r["stop_time"],
-                        )
-                    )
-                    room_busy.discard(
-                        (r["room"], r["day_of_week"], r["start_time"], r["stop_time"])
-                    )
+                    print("   ", r["subject_code"], r["subject_name"], 
+                        r["teacher"], r["student_group"], 
+                        r["day_of_week"], r["start_time"], "-", r["stop_time"], 
+                        "room:", r["room"])
+                print("-" * 50)
+
+                # ไม่ discard busy เพื่อให้เห็นชัด ๆ ว่าก้อนไหนขาด
                 continue
 
         population.append(individual)
         count_runtime = count_runtime + 1
         print(count_runtime)
-
     return population
-
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
-def make_allow_set(ga_free: pd.DataFrame):
+def make_allow_set(time_slot: pd.DataFrame):
     """
     สร้างชุด key ที่อนุญาตให้ใช้ (group_id, day, start, stop, room)
     ใช้ lookup เร็ว ๆ ใน fitness/mutation/repair
     """
-    if ga_free is None or ga_free.empty:
+    if time_slot is None or time_slot.empty:
         return set()
     return set(
         (
@@ -584,7 +586,7 @@ def make_allow_set(ga_free: pd.DataFrame):
             r["stop_time"],
             r["room_name"],
         )
-        for _, r in ga_free.iterrows()
+        for _, r in time_slot.iterrows()
     )
 
 
@@ -605,18 +607,18 @@ def is_conflict(existing_rows, g):
 
 
 def find_slot_for_gene(
-    gene, ga_free: pd.DataFrame, allow_set, rng: random.Random, max_tries=100
+    gene, time_slot: pd.DataFrame, allow_set, rng: random.Random, max_tries=100, cancel_event=None,
 ):
     """
     หา slot ที่ถูกต้องสำหรับ gene:
       - group_allow: (group_type_id, day, start, stop, room) ต้องอยู่ใน allow_set
       - ไม่ชนกับสิ่งที่มีอยู่ (ผู้เรียกต้องเช็คเองตอน append)
-    กลยุทธ์ง่าย ๆ: สุ่ม candidate จาก ga_free ตาม group_id แล้วลองทีละตัว
+    กลยุทธ์ง่าย ๆ: สุ่ม candidate จาก time_slot ตาม group_id แล้วลองทีละตัว
     """
     if pd.isna(gene.get("group_type_id", None)):
         return None  # ไม่มีสิทธิ์กลุ่ม ก็หาให้ไม่ได้
 
-    cand = ga_free[ga_free["group_id"] == int(gene["group_type_id"])]
+    cand = time_slot[time_slot["group_id"] == int(gene["group_type_id"])]
     if cand.empty:
         return None
 
@@ -628,6 +630,7 @@ def find_slot_for_gene(
         tries += 1
         if tries > max_tries:
             break
+        _check_cancel(cancel_event) 
         r = cand.loc[i]
         key = (
             int(gene["group_type_id"]),
@@ -726,7 +729,7 @@ def course_key(g):
     )
 
 
-def crossover(parent1, parent2, allow_set, ga_free, rng: random.Random, room_type_of):
+def crossover(parent1, parent2, allow_set, time_slot, rng: random.Random, room_type_of, cancel_event=None):
     # ทำ bucket ของแต่ละพ่อแม่
     b1 = defaultdict(list)
     for g in parent1:
@@ -767,7 +770,7 @@ def crossover(parent1, parent2, allow_set, ga_free, rng: random.Random, room_typ
                 and room_type_of.get(g["room"]) != g["room_type_course"]
             )
         ):
-            slot = find_slot_for_gene(g, ga_free, allow_set, rng)
+            slot = find_slot_for_gene(g, time_slot, allow_set, rng, cancel_event=cancel_event)
             if slot is None:
                 ok = False
             else:
@@ -782,7 +785,7 @@ def crossover(parent1, parent2, allow_set, ga_free, rng: random.Random, room_typ
 
 
 def mutate(
-    individual, allow_set, ga_free, mut_rate: float, rng: random.Random, room_type_of
+    individual, allow_set, time_slot, mut_rate: float, rng: random.Random, room_type_of, cancel_event=None,
 ):
     if not individual:
         return individual
@@ -792,7 +795,8 @@ def mutate(
     # MOVE
     for i, g in enumerate(out):
         if rng.random() < mut_rate:
-            slot = find_slot_for_gene(g, ga_free, allow_set, rng)
+            _check_cancel(cancel_event) 
+            slot = find_slot_for_gene(g, time_slot, allow_set, rng, cancel_event=cancel_event)
             if slot:
                 newg = {**g, **slot}
                 if (
@@ -856,17 +860,18 @@ def run_genetic_algorithm(
     cx_rate: float = 0.9,
     mut_rate: float = 0.2,
     seed: int = 42,
+    cancel_event=None
 ):
     rng = random.Random(seed)
 
     courses = data["courses"]
-    ga_free = data["ga_free"]
+    time_slot = data["time_slot"]
 
     # 1) ประชากรเริ่มต้น
-    population = initialize_population(courses, ga_free, pop_size, seed=seed)
-
+    population = initialize_population(courses, time_slot, pop_size, seed=seed, cancel_event=cancel_event)
+    print(len(population[0]))
     # 2) set สำหรับเช็ค allow และ mapping ชนิดห้อง (optional)
-    allow_set = make_allow_set(ga_free)
+    allow_set = make_allow_set(time_slot)
     rooms_df = data.get("rooms", pd.DataFrame())
     room_type_of = {}
     if (
@@ -885,6 +890,8 @@ def run_genetic_algorithm(
 
     # 3) วน GA
     for _ in range(generations):
+        _check_cancel(cancel_event)
+
         scored = [(fitness(ind), ind) for ind in population]
         scored.sort(key=lambda x: x[0], reverse=True)
 
@@ -896,12 +903,14 @@ def run_genetic_algorithm(
         # สร้างลูก
         parent_pool = [ind for _, ind in scored[: max(10, pop_size)]]
         while len(new_pop) < pop_size and parent_pool:
+            _check_cancel(cancel_event)  # ← กันลูปยาวสร้างลูก
+
             p1, p2 = rng.sample(parent_pool, 2)
             if rng.random() < cx_rate:
-                child = crossover(p1, p2, allow_set, ga_free, rng, room_type_of)
+                child = crossover(p1, p2, allow_set, time_slot, rng, room_type_of, cancel_event=cancel_event)
             else:
                 child = [dict(g) for g in (p1 if rng.random() < 0.5 else p2)]
-            child = mutate(child, allow_set, ga_free, mut_rate, rng, room_type_of)
+            child = mutate(child, allow_set, time_slot, mut_rate, rng, room_type_of, cancel_event=cancel_event)
             new_pop.append(child)
 
         population = new_pop
@@ -935,7 +944,7 @@ def save_ga_result(schedule_rows):
     GeneratedSchedule.objects.bulk_create(objs)
 
 
-def run_genetic_algorithm_from_db() -> Dict[str, Any]:
+def run_genetic_algorithm_from_db(cancel_event=None) -> Dict[str, Any]:
     """ดึงข้อมูลทั้งหมด + เตรียมข้อมูลสำหรับ Genetic Algorithm (ยังไม่รันจริง)"""
     # ========= layer 1 ============
     data = fetch_all_from_db()
@@ -947,19 +956,29 @@ def run_genetic_algorithm_from_db() -> Dict[str, Any]:
 
     # ========= layer 2 ============
     ga_with_rooms = expand_groupallows_with_rooms(data["groupallows"], data["rooms"])
-    ga_free = apply_preschedule_blocking(ga_with_rooms, data["preschedules"])
-    data["ga_free"] = ga_free
+    time_slot = apply_preschedule_blocking(ga_with_rooms, data["preschedules"])
+    data["time_slot"] = time_slot
 
-    # print(tabulate(data["ga_free"], headers="keys", tablefmt="grid", showindex=False))
+    # print(tabulate(data["time_slot"], headers="keys", tablefmt="grid", showindex=False))
     # exit()
 
     # ========= layer 3 ============
     data["courses"] = explode_courses_to_units(data["courses"])
     print("=== success ===")
     # ========= layer 4 ============
-    result = run_genetic_algorithm(data, generations=10, pop_size=10)
+    try:
+        result = run_genetic_algorithm(
+            data, generations=10, pop_size=10, cancel_event=cancel_event
+        )
+    except GenerationCancelled:
+        # ไม่เซฟผลลัพธ์ และโยนขึ้นไป/หรือคืนสถานะให้ view ตัดสินใจ
+        # ทางเลือกที่ 1: ส่งต่อให้ view จับแล้วตอบ 204
+        raise
+        # ทางเลือกที่ 2 (ถ้าอยากคืน dict):
+        # return {"status": "cancelled"}
+
     print("=== success ===")
-    save_ga_result(result["schedule"])
+    save_ga_result(result["schedule"])   # ← จะไม่เรียกถึงบรรทัดนี้ถ้า raise จากด้านบน
 
     best_sched = result["schedule"]
     return {

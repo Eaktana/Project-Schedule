@@ -1,6 +1,10 @@
 from django.urls import path
 from . import views
-
+from django.contrib import admin
+from django.contrib.auth import views as auth_views
+from scheduler import views
+from django.contrib.auth import views as auth_views
+from django.contrib.auth.views import LogoutView
 urlpatterns = [
     
     # หน้าเว็บหลัก
@@ -9,8 +13,10 @@ urlpatterns = [
     path("course/", views.course_page, name="course"),
     path("weekactivity/", views.activity_page, name="weekactivity"),
     path("add/", views.add_info, name="add"),
+    path('admin/', admin.site.urls),
+    path("about/", views.about, name="about"),
     
-    # APIs ที่มีอยู่แล้ว...
+    # APIs
     path("api/test-program/", views.test_program_api, name="test_program_api"),
     path(
         "api/schedule/generate/",
@@ -18,22 +24,19 @@ urlpatterns = [
         name="generate_schedule_api",
     ),
     path("api/schedule/view/", views.view_schedule_api, name="view_schedule_api"),
-    path("api/schedule/clear/", views.clear_schedule_api, name="clear_schedule_api"),
     path("api/schedule/download/", views.download_schedule, name="download_schedule"),
-    path(
-        "api/schedule/delete-selected/",
-        views.delete_selected_schedules_api,
-        name="delete_selected_schedules_api",
-    ),
+    path("api/schedule/delete-selected/", views.delete_generated_selected, name="delete_generated_selected"),
     path(
         "api/schedule/view-generated/",
         views.view_generated_schedule_api,
         name="view_generated_schedule",
     ),
-    path("api/schedule/list/", views.list_generated_entities_api, name="schedule_list"),
+    path("api/schedule/generated/", views.list_generated_schedules, name="list_generated_schedules"),
     path("api/schedule/detail/", views.schedule_detail_api, name="schedule_detail"),
     path('api/schedule/timetable/', views.timetable_by_entity, name='timetable_by_entity'),
-    
+    path('api/schedule/cancel/', views.cancel_generation, name='cancel_generation'),
+    path("api/schedule/list/", views.list_generated_entities_api, name="list_generated_entities"),
+
     # Pre-Schedule APIs
     path("api/pre/", views.get_pre, name="get_pre"),
     path("api/pre/add/", views.add_pre, name="add_pre"),
@@ -187,4 +190,12 @@ urlpatterns = [
         "api/timeslot/update/<int:pk>/", views.timeslot_update, name="timeslot_update"
     ),
     
+    # ---- PDF APIs ----
+    path("api/export/pdf/", views.export_pdf_single, name="export_pdf_single"),
+    path("api/export/pdf/batch/", views.export_pdf_batch, name="export_pdf_batch"),
+
+    # Login/Logout
+    path('login/', auth_views.LoginView.as_view(template_name='login.html'), name='login'),
+    path('logout/', auth_views.LogoutView.as_view(next_page='home'), name='logout'),
+
 ]

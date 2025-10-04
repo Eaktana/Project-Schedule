@@ -1,0 +1,195 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เกี่ยวกับเรา</title>
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/bass.css' %}?v=2">
+</head>
+<body>
+    <!-- Header -->
+    <header class="bg-white border-bottom py-3 shadow-sm">
+    <div class="container-fluid" style="max-width: 1400px;">
+        <div class="row align-items-center">
+        <div class="col-md-6">
+            <div class="d-flex align-items-center">
+            <i class="bi bi-calendar-check text-primary fs-3 me-2"></i>
+            <h1 class="h4 mb-0 fw-bold text-dark">ระบบจัดตารางสอน</h1>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="d-flex justify-content-end align-items-center">
+            <a class="btn btn-outline-secondary me-2" href="#">
+                <i class="bi bi-file-text me-1"></i> คู่มือ
+            </a>
+            <a class="btn btn-outline-primary me-3" href="{% url 'about' %}">
+                <i class="bi bi-info-circle me-1"></i> เกี่ยวกับเรา
+            </a>
+
+            <!-- Login / Logout -->
+            <ul class="navbar-nav flex-row gap-2">
+                {% if user.is_authenticated %}
+                <li class="nav-item d-flex align-items-center me-2 text-dark">
+                    <i class="bi bi-person-circle me-1 text-primary"></i>
+                    <strong>{{ user.username }}</strong>
+                </li>
+                <li class="nav-item">
+                    <form method="post" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                        <i class="bi bi-box-arrow-right me-1"></i> 
+                    </button>
+                    </form>
+                </li>
+                {% else %}
+                <li class="nav-item">
+                    <a class="btn btn-primary btn-sm" href="{% url 'login' %}">
+                    <i class="bi bi-box-arrow-in-right me-1"></i> เข้าสู่ระบบ
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+            </div>
+        </div>
+        </div>
+    </div>
+    </header>
+      <!-- Navigation -->
+  <nav class="bg-white border-bottom">
+    <div class="container-fluid" style="max-width: 1400px;">
+      <ul class="nav nav-tabs border-0">
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'home' %}active{% endif %}"
+             href="{% url 'home' %}" {% if request.resolver_match.url_name == 'home' %}aria-current="page"{% endif %}>
+            <i class="bi bi-house me-2"></i>หน้าหลัก
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'subject' %}active{% endif %}"
+             href="{% url 'subject' %}" {% if request.resolver_match.url_name == 'subject' %}aria-current="page"{% endif %}>
+            <i class="bi bi-plus-square me-2"></i>เพิ่มข้อมูล
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'pre' %}active{% endif %}"
+             href="{% url 'pre' %}" {% if request.resolver_match.url_name == 'pre' %}aria-current="page"{% endif %}>
+            <i class="bi bi-book me-2"></i>ลงล่วงหน้า
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'course' %}active{% endif %}"
+             href="{% url 'course' %}" {% if request.resolver_match.url_name == 'course' %}aria-current="page"{% endif %}>
+            <i class="bi bi-people me-2"></i>รายวิชา
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'weekactivity' %}active{% endif %}"
+             href="{% url 'weekactivity' %}" {% if request.resolver_match.url_name == 'weekactivity' %}aria-current="page"{% endif %}>
+            <i class="bi bi-activity me-2"></i>กิจกรรม
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+  
+  <!-- Content -->
+  <main class="container py-5">
+    <!-- ที่มาและความสำคัญ -->
+    <section class="mb-5">
+      <h2 class="h4 fw-bold text-primary">ที่มาและความสำคัญ</h2>
+      <p>
+        การจัดตารางสอนด้วยมือมักเกิดความซับซ้อนและผิดพลาดได้ง่าย 
+        ทีมผู้พัฒนาจึงสร้างระบบจัดตารางสอนอัตโนมัติโดยใช้อัลกอริทึมการหาค่าที่เหมาะสม 
+        เพื่อลดปัญหาการซ้ำซ้อนและช่วยให้การใช้ทรัพยากรมีประสิทธิภาพมากขึ้น โดยที่ระบบใช้ <strong>Genetic Algorithm (GA)</strong> ซึ่งเป็นหนึ่งในอัลกอริทึมการหาค่าที่เหมาะสม 
+        ในการสร้างตารางเรียน ตารางสอน และการใช้ห้องเรียนที่ไม่ซ้ำซ้อน
+      </p>
+    </section>
+
+    <!-- ทีมพัฒนา -->
+    <section class="mb-5">
+    <h2 class="h4 fw-bold text-dark mb-4 text-center">ทีมผู้พัฒนา</h2>
+    <div class="row g-4 justify-content-center">
+        <!-- Card 1 -->
+        <div class="col-md-4 col-sm-6">
+            <div class="card h-100 border-0 shadow-sm text-center p-3">
+                <img src="{% static 'img/ektana.jpg' %}" 
+                class="mx-auto mt-3 shadow rounded-3" 
+                style="width:180px; height:180px; object-fit:cover;" 
+                alt="นายเอกธนา">
+            <div class="card-body">
+            <h5 class="card-title fw-bold">นายเอกธนา อภิญญาวิวัฒน์</h5>
+            <p class="card-text text-muted">นักศึกษา</p>
+            <div class="d-flex justify-content-center gap-3 mt-3">
+                <a href="mailto:ap.eaktana@gmail.com" class="text-danger fs-5"><i class="bi bi-envelope-fill"></i></a>
+                <a href="https://github.com/Eaktana" class="text-dark fs-5" target="_blank"><i class="bi bi-github"></i></a>
+            </div>
+        </div>
+        </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="col-md-4 col-sm-6">
+        <div class="card h-100 border-0 shadow-sm text-center p-3">
+            <img src="{% static 'img/bandita.png' %}" 
+                class="mx-auto mt-3 shadow rounded-3" 
+                style="width:180px; height:180px; object-fit:cover;" 
+                alt="นางสาวบัณฑิตา">
+            <div class="card-body">
+            <h5 class="card-title fw-bold">นางสาวบัณฑิตา สุธรรม</h5>
+            <p class="card-text text-muted">นักศึกษา</p>
+            <div class="d-flex justify-content-center gap-3 mt-3">
+                <a href="mailto:bew6467@gmail.com" class="text-danger fs-5"><i class="bi bi-envelope-fill"></i></a>
+                <a href="https://github.com/SBiew0130" class="text-dark fs-5" target="_blank"><i class="bi bi-github"></i></a>
+            </div>
+            </div>
+        </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="col-md-4 col-sm-6">
+        <div class="card h-100 border-0 shadow-sm text-center p-3">
+            <img src="{% static 'img/pimpa.jpg' %}" 
+                class="mx-auto mt-3 shadow rounded-3" 
+                style="width:180px; height:180px; object-fit:cover;" 
+                alt="นางสาวพิมพา">
+            <div class="card-body">
+            <h5 class="card-title fw-bold">นางสาวพิมพา นารี</h5>
+            <p class="card-text text-muted">นักศึกษา</p>
+            <div class="d-flex justify-content-center gap-3 mt-3">
+                <a href="mailto:pimpanaree@gmail.com" class="text-danger fs-5"><i class="bi bi-envelope-fill"></i></a>
+                <a href="https://github.com/morningpim" class="text-dark fs-5" target="_blank"><i class="bi bi-github"></i></a>
+            </div>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- อาจารย์ที่ปรึกษา -->
+    <div class="mt-5 text-center">
+        <h5 class="fw-bold">อาจารย์ที่ปรึกษา</h5>
+        <p class="mb-1">ผศ.ดร. จักรภพ ใหม่เสน</p>
+        <p class="text-muted">หลักสูตรวิศวกรรมศาสตรบัณฑิต (วิศวกรรมคอมพิวเตอร์) ปีการศึกษา 2568</p>
+    </div>
+    </section>
+
+    <div class="text-center">
+      <a href="{% url 'home' %}" class="btn btn-primary">
+        <i class="bi bi-arrow-left me-1"></i> กลับหน้าหลัก
+      </a>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-dark text-white text-center py-3">
+    <small>&copy; 2025 ระบบจัดตารางสอน - พัฒนาเพื่อการศึกษา</small>
+  </footer>
+
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

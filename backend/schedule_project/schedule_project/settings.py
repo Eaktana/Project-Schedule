@@ -80,29 +80,29 @@ WSGI_APPLICATION = 'schedule_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.mysql',
-#         'NAME': 'schedule_db',
-#         'USER': 'root',
-#         'PASSWORD': '', 
-#         'HOST': '127.0.0.1',
-#         'PORT': '3306',
-#         'OPTIONS': {'charset': 'utf8mb4'},
-#     }
-# }
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'schedule_db',
         'USER': 'root',
-        'PASSWORD': 'd13b4eff2c7a0354ae2c8bb718cf431a2cb6', 
-        'HOST': '103.216.158.194',
-        'PORT': '50001',
+        'PASSWORD': '', 
+        'HOST': '127.0.0.1',
+        'PORT': '3307',
         'OPTIONS': {'charset': 'utf8mb4'},
     }
 }
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': 'schedule_db',
+#         'USER': 'root',
+#         'PASSWORD': 'd13b4eff2c7a0354ae2c8bb718cf431a2cb6', 
+#         'HOST': '103.216.158.194',
+#         'PORT': '50001',
+#         'OPTIONS': {'charset': 'utf8mb4'},
+#     }
+# }
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
@@ -144,3 +144,10 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+WKHTMLTOPDF_CMD = r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
+
+# settings.py
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/'

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<style>
+  /* หน้ากระดาษแนวนอน + ระยะขอบ */
+  @page { size: A4 landscape; margin: 14mm 12mm; }
+
+  /* ฟอนต์และขนาดมาตรฐานสำหรับ PDF */
+  body { font-family: "TH Sarabun New","Sarabun",Tahoma,sans-serif; font-size: 12px; color:#000; }
+  h1 { font-size: 20px; margin: 0 0 8px; }
+  .meta { margin-bottom: 8px; }
+
+  /* ตารางหลัก */
+  table { width:100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { border:1px solid #cfd8dc; padding:3px 4px; }
+  thead th { background:#f5f7fa; text-align:center; font-size:11px; }
+  .day { width:110px; white-space:nowrap; background:#fafbfc; }
+
+  /* ช่องคาบ */
+  .slot { height:34px; vertical-align:top; padding:0; }
+
+  /* กล่องวิชา (ขาวดำ) */
+  .card {
+    height:100%;
+    width:100%;
+    display: table;           /* wkhtmltopdf-friendly */
+    border:1px solid #9aa4aa;
+    border-radius: 3px;
+    color:#000;
+    background:#fff;
+  }
+  .card-inner { display: table-cell; vertical-align: middle; text-align: center; padding: 2px 3px; }
+  .meta-line { font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  /* ส่วนใต้ตารางหลัก */
+  .summary-wrap { margin-top: 14px; page-break-inside: avoid; }
+  .summary-title { font-size: 16px; margin: 0 0 6px; }
+  .summary td, .summary th { font-size: 11px; }
+  .summary thead th { background:#eef3f7; }
+  .right { text-align: right; }
+</style>
+</head>
+<body>
+  <h1>{{ title }}</h1>
+
+  <!-- ตารางหลัก -->
+  <table>
+    <colgroup>
+      <col style="width:110px">
+      {% for _ in slots %}<col>{% endfor %}
+    </colgroup>
+    <thead>
+      <tr>
+        <th>วัน / เวลา</th>
+        {% for l in slot_labels %}<th>{{ l }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in days %}
+        <tr>
+          <th class="day">{{ d.name }}</th>
+          {% for cell in d.cells %}
+            {% if cell.render %}
+              {% if cell.block %}
+                {% with b=cell.block %}
+                <td class="slot" colspan="{{ cell.colspan|default:1 }}">
+                  <div class="card">
+                    <div class="card-inner">
+                      <div class="meta-line">{{ b.html|safe }}</div>
+                      {% if b.phase_label %}
+                        <div class="meta-line">{{ b.phase_label }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </td>
+                {% endwith %}
+              {% else %}
+                <td class="slot"></td>
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- รายละเอียดรายวิชา (รหัส / ชื่อ / ภาค / กลุ่มนักศึกษา / กลุ่มเรียน) -->
+  {% if summary_rows %}
+  <div class="summary-wrap">
+    <h2 class="summary-title">รายละเอียดรายวิชา</h2>
+    <table class="summary">
+      <colgroup>
+        <col style="width:40px">
+        <col style="width:120px">
+        <col>
+        <col style="width:110px">
+        <col style="width:160px">
+        <col style="width:110px">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>ที่</th>
+          <th>รหัสวิชา</th>
+          <th>ชื่อวิชา</th>
+          <th>ภาค</th>
+          <th>กลุ่มนักศึกษา</th>
+          <th>กลุ่มเรียน</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in summary_rows %}
+        <tr>
+          <td class="right">{{ r.idx }}</td>
+          <td>{{ r.code }}</td>
+          <td>{{ r.name }}</td>
+          <td>{{ r.phase }}</td>
+          <td>{{ r.group }}</td>
+          <td>{{ r.section }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</body>
+</html>

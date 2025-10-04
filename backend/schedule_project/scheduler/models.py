@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 class CourseSchedule(models.Model):
     teacher_name_course = models.CharField(max_length=100)
@@ -9,6 +10,10 @@ class CourseSchedule(models.Model):
     section_course = models.CharField(max_length=10)
     theory_slot_amount_course = models.IntegerField(default=0)
     lab_slot_amount_course = models.IntegerField(default=0)
+    created_by = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="courses",
+        null=True, blank=True
+    )
     
     def __str__(self):
         return f"{self.teacher_name_course} - {self.subject_name_course}"
@@ -26,6 +31,13 @@ class PreSchedule(models.Model):
     start_time_pre = models.TimeField()
     stop_time_pre = models.TimeField()
     room_name_pre = models.CharField(max_length=50, blank=True, default="")
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="preschedules",   # จะใช้ user.preschedules.all()
+        null=True,
+        blank=True
+    )
 
     def __str__(self):
         return f"{self.subject_name_pre} - {self.day_pre}"
@@ -36,6 +48,10 @@ class WeekActivity(models.Model):
     hours_activity = models.IntegerField(default=0)
     start_time_activity = models.TimeField(null=True, blank=True)
     stop_time_activity = models.TimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="week_activities",
+        null=True, blank=True
+    )
 
     def __str__(self):
         return f"{self.act_name_activity} - {self.day_activity}"
@@ -52,6 +68,10 @@ class ScheduleInfo(models.Model):
     Day = models.CharField(max_length=20, blank=True, default="")
     Hour = models.IntegerField(default=0)
     Time_Slot = models.CharField(max_length=20, blank=True, default="")
+    created_by = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="schedules",
+        null=True, blank=True
+    )
 
     def __str__(self):
         return f"{self.Course_Code} - {self.Day} {self.Hour:02d}:00"
@@ -70,8 +90,12 @@ class Timedata(models.Model):
 class Subject(models.Model):
     code = models.CharField(max_length=20, unique=True)
     name = models.CharField(max_length=100)
+    created_by = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="subjects"
+    )
 
     class Meta:
+        unique_together = ("code", "created_by")
         ordering = ["code"]
 
     def __str__(self):
@@ -79,8 +103,13 @@ class Subject(models.Model):
 
 class Teacher(models.Model):
     name = models.CharField(max_length=100, unique=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="teachers",
+        null=True, blank=True
+    )
 
     class Meta:
+        unique_together = ("name", "created_by")   # ✅ ป้องกันชื่อซ้ำ
         ordering = ["name"]
 
     def __str__(self):
@@ -88,8 +117,13 @@ class Teacher(models.Model):
 
 class GroupType(models.Model):
     name = models.CharField(max_length=50, unique=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="group_types",
+        null=True, blank=True
+    )
 
     class Meta:
+        unique_together = ("name", "created_by")
         ordering = ["name"]
 
     def __str__(self):
@@ -100,8 +134,13 @@ class StudentGroup(models.Model):
     group_type = models.ForeignKey(
         GroupType, on_delete=models.PROTECT, related_name="student_groups"
     )
+    created_by = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="student_groups",
+        null=True, blank=True
+    )
 
     class Meta:
+        unique_together = ("name", "created_by")
         ordering = ["name"]
 
     def __str__(self):
@@ -131,9 +170,13 @@ class TimeSlot(models.Model):
     day_of_week = models.CharField(max_length=20, choices=DAY_CHOICES)
     start_time = models.TimeField()
     stop_time = models.TimeField()
+    created_by = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="time_slots",
+        null=True, blank=True
+    )
 
     class Meta:
-        unique_together = ("day_of_week", "start_time", "stop_time")
+        unique_together = ("day_of_week", "start_time", "stop_time", "created_by")
         ordering = ["day_of_week", "start_time"]
 
     def __str__(self):
@@ -146,9 +189,13 @@ class GroupAllow(models.Model):
     slot = models.ForeignKey(
         TimeSlot, on_delete=models.CASCADE, related_name="group_type_allows"
     )
-
+    created_by = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="group_allows",
+        null=True, blank=True
+    )
+    
     class Meta:
-        unique_together = ("group_type", "slot")
+        unique_together = ("group_type", "slot", "created_by")
         ordering = ["group_type__name", "slot__day_of_week", "slot__start_time"]
 
     def __str__(self):
@@ -156,8 +203,13 @@ class GroupAllow(models.Model):
 
 class RoomType(models.Model):
     name = models.CharField(max_length=50, unique=True)
-
+    created_by = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="room_types",
+        null=True, blank=True
+    )
+    
     class Meta:
+        unique_together = ("name", "created_by")
         ordering = ["name"]
 
     def __str__(self):
@@ -168,8 +220,13 @@ class Room(models.Model):
     room_type = models.ForeignKey(
         RoomType, on_delete=models.PROTECT, related_name="rooms"
     )
+    created_by = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="rooms",
+        null=True, blank=True
+    )
 
     class Meta:
+        unique_together = ("name", "created_by")
         ordering = ["name"]
 
     def __str__(self):
@@ -190,6 +247,10 @@ class GeneratedSchedule(models.Model):
     room = models.CharField(max_length=50, blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="generated_schedules",
+        null=True, blank=True
+    )
 
     def __str__(self):
         return f"[GA] {self.subject_code} {self.day_of_week} {self.start_time}-{self.stop_time}"

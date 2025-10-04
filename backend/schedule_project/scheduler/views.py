@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import re
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta
 from io import StringIO
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -15,14 +15,26 @@ from django.conf import settings
 from django.db.models import Case, When, Value, IntegerField, Q
 from django.views.decorators.http import require_GET
 from django.db.models import Count
-from django.db.models import Q
 from django.db.models.deletion import ProtectedError
+from django.http import HttpResponseBadRequest
+# --- เพิ่มมาใหม่สำหรับ PDF ---
+from io import BytesIO
+from zipfile import ZipFile, ZIP_DEFLATED
+from django.http import HttpResponse
+from django.template.loader import render_to_string
+
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
 
 from decimal import Decimal
 import math
 
-from .main import run_genetic_algorithm_from_db
+# views.py
+from .main import run_genetic_algorithm_from_db, GenerationCancelled
 from .models import WeekActivity, PreSchedule, CourseSchedule, ScheduleInfo
+
+from threading import Event, Lock
+from django.views.decorators.http import require_POST
 
 from .models import (
     GroupAllow,
@@ -67,6 +79,63 @@ def slot_start_hour(ts: str) -> int:
     m = re.search(r"(\d{1,2})(?::\d{2})?", ts or "")
     return int(m.group(1)) if m else 0
 
+# close ga 
+cancel_event = Event()
+generation_lock = Lock()
+generation_running = False
+
+@require_POST
+def cancel_generation(request):
+    cancel_event.set()
+    return HttpResponse(status=204)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def generate_schedule_api(request):
+    global generation_running
+
+    # กันรันซ้อน
+    if not generation_lock.acquire(blocking=False):
+        return JsonResponse(
+            {"status": "busy", "message": "already running"},
+            status=409,
+            json_dumps_params={"ensure_ascii": False},
+        )
+
+    try:
+        if generation_running:
+            return JsonResponse(
+                {"status": "busy", "message": "already running"},
+                status=409,
+                json_dumps_params={"ensure_ascii": False},
+            )
+
+        generation_running = True
+        cancel_event.clear()
+
+        try:
+            # สำคัญ: ส่ง cancel_event เข้า main
+            result = run_genetic_algorithm_from_db(cancel_event=cancel_event)
+
+            # ทำความสะอาด payload ให้ serializable
+            payload = _san(result)
+            return JsonResponse(payload, json_dumps_params={"ensure_ascii": False})
+
+        except GenerationCancelled:
+            # ผู้ใช้กดยกเลิกระหว่างทาง
+            return HttpResponse(status=204)
+
+        except Exception as e:
+            return JsonResponse(
+                {"status": "error", "message": str(e)},
+                status=500,
+                json_dumps_params={"ensure_ascii": False},
+            )
+
+    finally:
+        generation_running = False
+        cancel_event.clear()
+        generation_lock.release()
 # ========== หน้าเว็บ (Page Views) ==========
 
 def home(request):
@@ -162,18 +231,6 @@ def _san(v):
         return [_san(x) for x in v]
 
     return v
-
-@csrf_exempt
-@require_http_methods(["POST"])
-def generate_schedule_api(request):
-    try:
-        result = run_genetic_algorithm_from_db()
-        # ทำความสะอาด payload ทั้งก้อน
-        payload = _san(result)
-        return JsonResponse(payload, json_dumps_params={"ensure_ascii": False})
-    except Exception as e:
-        import traceback; traceback.print_exc()
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 def create_schedule_csv_file():
     """สร้างไฟล์ CSV จากตารางสอนในฐานข้อมูลและบันทึกลงเซิร์ฟเวอร์"""
@@ -344,83 +401,36 @@ def view_generated_schedule_api(request):
         json_dumps_params={"ensure_ascii": False},
     )
 
+# ============ Schedule API =============
+def list_generated_schedules(request):
+    qs = (GeneratedSchedule.objects
+          .order_by("-id")
+          .values("id","teacher","subject_code","subject_name","type",
+                  "student_group","hours","section","day_of_week",
+                  "start_time","stop_time","room"))
+    items = []
+    for r in qs:
+        r["start_time"] = r["start_time"].strftime("%H:%M") if r["start_time"] else ""
+        r["stop_time"]  = r["stop_time"].strftime("%H:%M") if r["stop_time"] else ""
+        items.append(r)
+    return JsonResponse({"results": items})
+
 # ========== Clear Schedule API ==========
-
-@csrf_exempt
-@require_http_methods(["POST"])
-def clear_schedule_api(request):
-    """API สำหรับลบตารางสอนทั้งหมดในฐานข้อมูล"""
+@require_POST
+def delete_generated_selected(request):
+    """
+    รับ JSON: { "schedule_ids": [1,2,3] }  (จะส่ง 1 id หรือหลาย id ก็ได้)
+    """
     try:
-        deleted_count = ScheduleInfo.objects.count()
-        ScheduleInfo.objects.all().delete()
-
-        return JsonResponse(
-            {
-                "status": "success",
-                "message": f"ลบตารางสอนทั้งหมดสำเร็จ ({deleted_count} รายการ)",
-                "deleted_count": deleted_count,
-            },
-            json_dumps_params={"ensure_ascii": False},
-        )
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+        ids = payload.get("schedule_ids", [])
+        if not isinstance(ids, list):
+            return HttpResponseBadRequest("schedule_ids must be a list")
+        qs = GeneratedSchedule.objects.filter(id__in=ids)
+        deleted_count, _ = qs.delete()
+        return JsonResponse({"ok": True, "deleted": deleted_count})
     except Exception as e:
-        logger.error(f"Error clearing schedule: {e}")
-        return JsonResponse(
-            {"status": "error", "message": f"เกิดข้อผิดพลาดในการลบตารางสอน: {str(e)}"},
-            status=500,
-            json_dumps_params={"ensure_ascii": False},
-        )
-
-@csrf_exempt
-@require_http_methods(["POST"])
-def delete_selected_schedules_api(request):
-    """API สำหรับลบตารางสอนที่เลือกในฐานข้อมูล"""
-    try:
-
-        data = json.loads(request.body)
-        schedule_ids = data.get("schedule_ids", [])
-
-        if not schedule_ids:
-            return JsonResponse(
-                {"status": "error", "message": "ไม่พบรายการที่ต้องการลบ"},
-                status=400,
-                json_dumps_params={"ensure_ascii": False},
-            )
-
-        # Convert string IDs to integers
-        try:
-            schedule_ids = [int(id) for id in schedule_ids]
-        except ValueError:
-            return JsonResponse(
-                {"status": "error", "message": "รูปแบบ ID ไม่ถูกต้อง"},
-                status=400,
-                json_dumps_params={"ensure_ascii": False},
-            )
-
-        # Delete selected schedules
-        deleted_count, _ = ScheduleInfo.objects.filter(id__in=schedule_ids).delete()
-
-        return JsonResponse(
-            {
-                "status": "success",
-                "message": f"ลบรายการที่เลือกสำเร็จ ({deleted_count} รายการ)",
-                "deleted_count": deleted_count,
-            },
-            json_dumps_params={"ensure_ascii": False},
-        )
-
-    except json.JSONDecodeError:
-        return JsonResponse(
-            {"status": "error", "message": "รูปแบบข้อมูลไม่ถูกต้อง"},
-            status=400,
-            json_dumps_params={"ensure_ascii": False},
-        )
-    except Exception as e:
-        logger.error(f"Error deleting selected schedules: {e}")
-        return JsonResponse(
-            {"status": "error", "message": f"เกิดข้อผิดพลาดในการลบรายการที่เลือก: {str(e)}"},
-            status=500,
-            json_dumps_params={"ensure_ascii": False},
-        )
+        return JsonResponse({"ok": False, "error": str(e)}, status=500)
 
 # ========== COURSE APIs ==========
 
@@ -1674,10 +1684,6 @@ def parse_time_flexible(value, default_time="08:00"):
     # สุดท้าย fallback
     return datetime.strptime(default_time, "%H:%M").time()
 
-
-from datetime import datetime, date, timedelta
-
-
 def compute_stop_str(start_str: str, hours_str: str) -> str:
     """
     รับ start_time ('HH:MM' หรือรูปแบบยืดหยุ่น) + ชั่วโมง (เช่น '2' หรือ '1.5')
@@ -1739,8 +1745,6 @@ def download_schedule(request):
         csv_bytes = ("\ufeff" + csv_text).encode(
             "utf-8-sig"
         )  # BOM เพื่อเปิดใน Excel ภาษาไทย
-
-        from django.http import HttpResponse
 
         resp = HttpResponse(csv_bytes, content_type="text/csv; charset=utf-8")
         resp["Content-Disposition"] = 'attachment; filename="schedule.csv"'
@@ -1970,7 +1974,6 @@ def studentgroup(request):
     return render(request, "studentgroup.html", {"active_tab": "studentgroup"})
 
 
-@require_http_methods(["GET"])
 @require_http_methods(["GET"])
 def studentgroup_list(request):
     order_param = (request.GET.get("order") or "").strip()
@@ -2798,6 +2801,7 @@ def schedule_detail_api(request):
     gqs = gqs.filter(**{f"{field}__iexact": key})
     gqs = gqs.order_by("day_of_week", "start_time", "id")
     for g in gqs:
+        sec_val = g.section or _lookup_section_for_ga(g)
         rows.append({
             "Source": "Generated",
             "Day": g.day_of_week or "",
@@ -2809,6 +2813,7 @@ def schedule_detail_api(request):
             "Room": g.room or "",
             "Type": g.type or "",
             "Student_Group": g.student_group or "",
+            "Section": sec_val or "",
         })
 
     # ---------- 2) PreSchedule ----------
@@ -2831,124 +2836,12 @@ def schedule_detail_api(request):
             "Subject_Name": p.subject_name_pre or "",
             "Teacher": p.teacher_name_pre or "",
             "Room": p.room_name_pre or "",
-            # ภาคเรียน/ห้องที่ใช้ใน pre: ใช้ room_type_pre / type_pre ตามที่คุณเก็บ
             "Type": p.type_pre or p.room_type_pre or "",
             "Student_Group": p.student_group_name_pre or "",
+            "Section": p.section_pre or "",
         })
 
     # ---------- 3) WeekActivity ----------
-    # สำหรับกิจกรรม ให้ผูกกับ "กลุ่มนักศึกษา" หรือ "อาจารย์/ห้อง" ตามที่คุณใช้จริง
-    # ตอนนี้ตัวอย่างจะไม่กรองด้วย key (แสดงเฉพาะเมื่อดูแบบ room/teacher/group ก็ได้)
-    # ถ้าอยากผูกให้แน่น อาจต้องเพิ่มฟิลด์ใน WeekActivity
-    if view == "room":
-        # ถ้าในอนาคตมี room_name_activity ค่อยกรอง; ตอนนี้ขอข้ามการกรอง
-        pass
-    # แสดงกิจกรรมทั่วไปทั้งหมดเฉพาะเมื่อ key เป็น 'N/A' (ตาม UI ตัวอย่าง)
-    if key.upper() == "N/A":
-        aqs = WeekActivity.objects.order_by("day_activity", "start_time_activity", "id")
-        for a in aqs:
-            rows.append({
-                "Source": "Activity",
-                "Day": a.day_activity or "",
-                "Start": a.start_time_activity.strftime("%H:%M") if a.start_time_activity else "",
-                "Stop": a.stop_time_activity.strftime("%H:%M") if a.stop_time_activity else "",
-                "Course_Code": "",
-                "Subject_Name": a.act_name_activity or "กิจกรรม",
-                "Teacher": "N/A",
-                "Room": "N/A",
-                "Type": "activity",
-                "Student_Group": "N/A",
-            })
-
-    # ---- sort: วัน-เวลา ----
-    _ORDER = {"จันทร์":1,"อังคาร":2,"พุธ":3,"พฤหัสบดี":4,"ศุกร์":5,"เสาร์":6,"อาทิตย์":7}
-    def _key(r):
-        d = _ORDER.get(r["Day"], 99)
-        try:
-            hh, mm = (r["Start"] or "00:00").split(":")
-            t = int(hh)*60+int(mm)
-        except Exception:
-            t = 0
-        return (d, t, r.get("Subject_Name",""))
-    rows.sort(key=_key)
-
-    return JsonResponse({"status":"success", "view": view, "key": key, "rows": rows},
-                        json_dumps_params={"ensure_ascii": False})
-
-@csrf_exempt
-@require_http_methods(["GET"])
-def schedule_detail_api(request):
-    """
-    คืนแถวตารางสอนแบบ normalize ของ entity ที่เลือก
-    ?view=teacher|room|student_group  (รองรับ alias: group/student/students)
-    ?key=<ชื่อที่แสดงบนการ์ด เช่น 'อ.กิตตินันท น้อยมณี' หรือ '7305'>
-    """
-    from .models import GeneratedSchedule, PreSchedule, WeekActivity
-
-    view = (request.GET.get("view") or "teacher").lower().strip()
-    field_map = {
-        "teacher": "teacher",
-        "room": "room",
-        "group": "student_group",
-        "student_group": "student_group",
-        "students": "student_group",
-        "student": "student_group",
-    }
-    field = field_map.get(view, "teacher")
-    key = (request.GET.get("key") or "").strip()
-
-    if not key:
-        return JsonResponse({"status": "error", "message": "missing key"}, status=400)
-
-    rows = []
-
-    # ---------- 1) GeneratedSchedule ----------
-    gqs = GeneratedSchedule.objects.all()
-    gqs = gqs.filter(**{f"{field}__iexact": key})
-    gqs = gqs.order_by("day_of_week", "start_time", "id")
-    for g in gqs:
-        rows.append({
-            "Source": "Generated",
-            "Day": g.day_of_week or "",
-            "Start": g.start_time.strftime("%H:%M") if g.start_time else "",
-            "Stop": g.stop_time.strftime("%H:%M") if g.stop_time else "",
-            "Course_Code": g.subject_code or "",
-            "Subject_Name": g.subject_name or "",
-            "Teacher": g.teacher or "",
-            "Room": g.room or "",
-            "Type": g.type or "",
-            "Student_Group": g.student_group or "",
-        })
-
-    # ---------- 2) PreSchedule ----------
-    # mapping ชื่อให้ตรงตาม view
-    pre_field_map = {
-        "teacher": "teacher_name_pre",
-        "room": "room_name_pre",
-        "student_group": "student_group_name_pre",
-    }
-    pf = pre_field_map[field]
-    pqs = PreSchedule.objects.all().filter(**{f"{pf}__iexact": key})
-    pqs = pqs.order_by("day_pre", "start_time_pre", "id")
-    for p in pqs:
-        rows.append({
-            "Source": "Pre",
-            "Day": p.day_pre or "",
-            "Start": p.start_time_pre.strftime("%H:%M") if p.start_time_pre else "",
-            "Stop": p.stop_time_pre.strftime("%H:%M") if p.stop_time_pre else "",
-            "Course_Code": p.subject_code_pre or "",
-            "Subject_Name": p.subject_name_pre or "",
-            "Teacher": p.teacher_name_pre or "",
-            "Room": p.room_name_pre or "",
-            # ภาคเรียน/ห้องที่ใช้ใน pre: ใช้ room_type_pre / type_pre ตามที่คุณเก็บ
-            "Type": p.type_pre or p.room_type_pre or "",
-            "Student_Group": p.student_group_name_pre or "",
-        })
-
-    # ---------- 3) WeekActivity ----------
-    # สำหรับกิจกรรม ให้ผูกกับ "กลุ่มนักศึกษา" หรือ "อาจารย์/ห้อง" ตามที่คุณใช้จริง
-    # ตอนนี้ตัวอย่างจะไม่กรองด้วย key (แสดงเฉพาะเมื่อดูแบบ room/teacher/group ก็ได้)
-    # ถ้าอยากผูกให้แน่น อาจต้องเพิ่มฟิลด์ใน WeekActivity
     if view == "room":
         # ถ้าในอนาคตมี room_name_activity ค่อยกรอง; ตอนนี้ขอข้ามการกรอง
         pass
@@ -2993,54 +2886,76 @@ def _fmt(t):
 
 @require_GET
 def timetable_by_entity(request):
-    """
-    คืนตารางสอนของ 'รายชื่อ' ที่เลือก
-    query:
-      - view = teacher|room|student_group
-      - key  = ชื่อที่เลือก (ตรงกับในฐานข้อมูล)
-    แหล่งข้อมูล: GeneratedSchedule + PreSchedule + WeekActivity
-    """
     view = (request.GET.get("view") or "teacher").lower().strip()
-    key  = (request.GET.get("key") or "").strip()
+    key  = (request.GET.get("key")  or "").strip()
     if not key:
-        return JsonResponse({"status":"error","message":"missing key"}, status=400)
+        return JsonResponse({"status": "error", "message": "missing key"}, status=400)
 
+    # ใช้ตัวรวบรวมข้อมูลแทนลูปเดิมทั้งหมด
+    items = _collect_timetable_items(view, key)
+
+    return JsonResponse(
+        {"status": "success", "key": key, "view": view, "items": items},
+        json_dumps_params={"ensure_ascii": False},
+    )
+
+def _lookup_section_for_ga(g):
+    """พยายามหา section จาก CourseSchedule เมื่อ GeneratedSchedule.section ว่าง"""
+    from .models import CourseSchedule
+    qs = CourseSchedule.objects.filter(subject_code_course=g.subject_code)
+
+    if g.teacher:
+        qs = qs.filter(teacher_name_course=g.teacher)
+    if g.student_group:
+        qs = qs.filter(student_group_name_course=g.student_group)
+
+    # ถ้าเหลืออันเดียวชัวร์ ๆ ก็ใช้เลย
+    one = qs.first() if qs.count() == 1 else None
+    if one:
+        return one.section_course or ""
+
+    # สำรอง: ถ้า filter ข้างบนไม่เหลืออันเดียว ลองใช้ตัวกรองที่อ่อนลง
+    alt = CourseSchedule.objects.filter(subject_code_course=g.subject_code).first()
+    return (alt.section_course if alt else "") or ""
+
+def _collect_timetable_items(view: str, key: str):
     from .models import GeneratedSchedule, PreSchedule, WeekActivity
+
+    view = (view or "teacher").lower().strip()
+    key  = (key or "").strip()
 
     results = []
 
-    # --- 1) GeneratedSchedule (มีเวลาแน่ ๆ) ---
     field_map = {"teacher":"teacher","room":"room","student_group":"student_group"}
     f = field_map.get(view, "teacher")
     for g in GeneratedSchedule.objects.filter(**{f: key}).order_by("day_of_week","start_time","id"):
+        sec_val = g.section or _lookup_section_for_ga(g)  # <<— เพิ่มบรรทัดนี้
         results.append({
             "Source": "GA",
             "Day": g.day_of_week or "",
-            "StartTime": _fmt(g.start_time),
-            "StopTime": _fmt(g.stop_time),
+            "StartTime": g.start_time.strftime("%H:%M") if g.start_time else "",
+            "StopTime":  g.stop_time.strftime("%H:%M")  if g.stop_time  else "",
             "Course_Code": g.subject_code or "",
             "Subject_Name": g.subject_name or "",
             "Teacher": g.teacher or "",
             "Room": g.room or "",
-            "Type": g.type or "",
+            "Type": (g.type or "").lower(),
             "Student_Group": g.student_group or "",
-            "Section": g.section or "",
+            "Section": sec_val or "",
         })
-
-    # --- 2) PreSchedule (ลงล่วงหน้า) ---
+        
     pre_field = {
         "teacher": "teacher_name_pre",
         "room": "room_name_pre",
         "student_group": "student_group_name_pre",
     }.get(view, "teacher_name_pre")
 
-    q = {pre_field: key}
-    for p in PreSchedule.objects.filter(**q).order_by("day_pre","start_time_pre","id"):
+    for p in PreSchedule.objects.filter(**{pre_field: key}).order_by("day_pre","start_time_pre","id"):
         results.append({
             "Source": "PRE",
             "Day": p.day_pre or "",
-            "StartTime": _fmt(p.start_time_pre),
-            "StopTime": _fmt(p.stop_time_pre),
+            "StartTime": p.start_time_pre.strftime("%H:%M") if p.start_time_pre else "",
+            "StopTime":  p.stop_time_pre.strftime("%H:%M")  if p.stop_time_pre  else "",
             "Course_Code": p.subject_code_pre or "",
             "Subject_Name": p.subject_name_pre or "",
             "Teacher": p.teacher_name_pre or "",
@@ -3050,14 +2965,12 @@ def timetable_by_entity(request):
             "Section": p.section_pre or "",
         })
 
-    # --- 3) WeekActivity (กิจกรรมทั่วไป) ---
-    # โชว์ทุกกิจกรรม (เหมือนภาพตัวอย่างมี activity โผล่มาเป็นกล่อง N/A)
     for a in WeekActivity.objects.all().order_by("day_activity","start_time_activity","id"):
         results.append({
             "Source": "ACT",
             "Day": a.day_activity or "",
-            "StartTime": _fmt(a.start_time_activity),
-            "StopTime": _fmt(a.stop_time_activity),
+            "StartTime": a.start_time_activity.strftime("%H:%M") if a.start_time_activity else "",
+            "StopTime":  a.stop_time_activity.strftime("%H:%M")  if a.stop_time_activity  else "",
             "Course_Code": "",
             "Subject_Name": a.act_name_activity or "กิจกรรม",
             "Teacher": "N/A",
@@ -3066,12 +2979,483 @@ def timetable_by_entity(request):
             "Student_Group": "N/A",
         })
 
-    # sort ตามวัน/เวลา
-    def _key(r):
-        return (_DAY_ORDER_THAI.get(r["Day"], 99), r["StartTime"] or "99:99", r["Subject_Name"])
-    results.sort(key=_key)
+    _ORDER = {"จันทร์":1,"อังคาร":2,"พุธ":3,"พฤหัสบดี":4,"ศุกร์":5,"เสาร์":6,"อาทิตย์":7}
+    results.sort(key=lambda r: (_ORDER.get(r["Day"],99), r["StartTime"] or "99:99", r["Subject_Name"]))
+    return results
 
-    return JsonResponse({"status":"success","key":key,"view":view,"items":results},
-                        json_dumps_params={"ensure_ascii": False})
+# ---------- แกนกลาง: ดึงข้อมูล "เหมือนในตารางโมดัล" ----------
+def _get_items_for_entity(view: str, key: str):
+    return _collect_timetable_items(view, key)
+
+# ---------- จัด block ต่อเนื่อง & เตรียม grid ----------
+TT_DAY_ORDER = ["จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์","อาทิตย์"]
+TT_START = (8, 0)    # 08:00
+TT_END   = (21, 0)   # 21:00
+TT_SLOT_MIN = 30     # นาทีต่อคอลัมน์
+
+def _tmin(hhmm: str) -> int:
+    if not hhmm: return None
+    hh, mm = hhmm.split(":")
+    return int(hh)*60 + int(mm)
+
+def _min_to_label(m):
+    h, mm = divmod(m, 60)
+    return f"{h:02d}.{mm:02d}"
+
+def _label_lines(r: dict) -> list[str]:
+    """
+    ทำข้อความสั้นๆ เป็นบรรทัด (แบบรูปตัวอย่าง)
+    1) รหัสวิชา (หรือ Subject_Name ถ้าไม่มีรหัส)
+    2) section ถ้ามี
+    3) ห้อง ถ้ามี
+    """
+    code = (r.get("Course_Code") or "").strip()
+    subj = (r.get("Subject_Name") or "").strip()
+    sec  = (r.get("Section") or "").strip()
+    room = (r.get("Room") or "").strip()
+
+    head = code or subj or "-"
+    lines = [head]
+    if sec:  lines.append(sec)
+    if room: lines.append(room)
+    return lines
+
+def _build_grid(items):
+    """
+    รวมบล็อกที่ 'ทับกัน' ในวันเดียวกันให้เป็นกล่องเดียว
+    - ถ้าทับกัน: รวมช่วงเวลาเป็น union และสะสมข้อความหลายรายการเป็นหลายบรรทัด
+    - ถ้าต่อเนื่องกันแบบวิชาเดียวกัน: merge ต่อเนื่องเหมือนเดิม
+    """
+    start_min = TT_START[0]*60 + TT_START[1]
+    end_min   = TT_END[0]*60 + TT_END[1]
+    slots = (end_min - start_min)//TT_SLOT_MIN
+
+    def _tmin(hhmm: str|None):
+        if not hhmm: return None
+        hh, mm = hhmm.split(":")
+        return int(hh)*60+int(mm)
+
+    # สร้างรายการบล็อกดิบ (แปลงเป็น index ของคาบครึ่งชั่วโมง)
+    raw_by_day: dict[str, list[dict]] = {d: [] for d in TT_DAY_ORDER}
+    for r in items:
+        day = r.get("Day") or ""
+        if day not in raw_by_day: 
+            continue
+        s = _tmin(r.get("StartTime"))
+        e = _tmin(r.get("StopTime"))
+        if s is None or e is None or e <= s:
+            continue
+        s = max(start_min, min(s, end_min))
+        e = max(start_min, min(e, end_min))
+        sh = (s - start_min) // TT_SLOT_MIN
+        eh = (e - start_min + TT_SLOT_MIN - 1) // TT_SLOT_MIN
+        sh = max(0, min(sh, slots))
+        eh = max(0, min(eh, slots))
+        if eh <= sh:
+            continue
+
+        raw_by_day[day].append({
+            "sh": sh, "eh": eh,
+            "Type": (r.get("Type") or "").lower(),
+            "lines": _label_lines(r),  # เก็บข้อความไว้เป็น list ของบรรทัด
+            # เก็บต้นฉบับเผื่ออยากใช้ tooltip ในอนาคต
+            "_raw": r,
+        })
+
+    # ขั้นตอน merge
+    merged_by_day: dict[str, list[dict]] = {}
+    for d, xs in raw_by_day.items():
+        xs = sorted(xs, key=lambda x: x["sh"])
+        out: list[dict] = []
+
+        for b in xs:
+            if not out:
+                out.append({**b})
+                continue
+
+            cur = out[-1]
+            # 1) ถ้าวิชาเดียวกันต่อเนื่อง (บรรทัดเหมือนกันทุกบรรทัดและชนิดเดียวกัน) → ต่อช่วงเวลา
+            same_subject = (cur["lines"] == b["lines"] and cur["Type"] == b["Type"])
+            if same_subject and b["sh"] <= cur["eh"]:
+                cur["eh"] = max(cur["eh"], b["eh"])
+                continue
+
+            # 2) ถ้าทับช่วงเวลา (ชนกัน) → รวมเป็นกล่องเดียว (union) และต่อบรรทัดเข้าไป
+            overlap = b["sh"] < out[-1]["eh"]
+            if overlap:
+                cur["eh"] = max(cur["eh"], b["eh"])
+                # ต่อข้อความแบบไม่ซ้ำบรรทัดหัว
+                for ln in b["lines"]:
+                    if ln not in cur["lines"]:
+                        cur["lines"].append(ln)
+                # ถ้าประเภทใดเป็น activity ให้ถือว่าเป็น activity (เพื่อทำสี)
+                if "activity" in (cur["Type"], b["Type"]):
+                    cur["Type"] = "activity"
+                continue
+
+            # 3) ไม่ทับ → เริ่มกล่องใหม่
+            out.append({**b})
+
+        merged_by_day[d] = out
+
+    # ป้ายหัวคอลัมน์เวลา (08.00-08.30, ...)
+    labels = []
+    for i in range(slots):
+        s = start_min + i*TT_SLOT_MIN
+        e = s + TT_SLOT_MIN
+        hs, ms = divmod(s, 60)
+        he, me = divmod(e, 60)
+        labels.append(f"{hs:02d}.{ms:02d}-{he:02d}.{me:02d}")
+
+    return {
+        "slots": slots,
+        "slot_labels": labels,
+        "blocks_by_day": merged_by_day,
+    }
+
+def _phase_label(t: str) -> str:
+    t = (t or "").lower()
+    if t == "lab":
+        return "lab (ปฏิบัติ)"
+    if t == "theory":
+        return "theory (ทฤษฎี)"
+    if t == "activity":
+        return "กิจกรรม"
+    return ""
+
+# === SUMMARY TABLE (no credits) =====================
+
+def _mins(hhmm: str) -> int:
+    if not hhmm: return 0
+    try:
+        hh, mm = hhmm.split(":")
+        return int(hh) * 60 + int(mm)
+    except Exception:
+        return 0
+
+def _aggregate_detail(items: list[dict]) -> dict:
+    """
+    รวมแถว items (จาก _collect_timetable_items) ให้ได้สรุปต่อรายวิชา/section
+    คืน dict: { "rows": [...], "totals": {...} }
+    """
+    groups = {}  # key = (code, section or student_group)
+    for r in items:
+        if r.get("Type", "").lower() == "activity":
+            # กิจกรรมไม่ขึ้นในตารางสรุปรายวิชา
+            continue
+
+        code = (r.get("Course_Code") or "").strip()
+        name = (r.get("Subject_Name") or "").strip()
+        # ใช้ Section ถ้ามี; ถ้าไม่มีใช้ Student_Group; ถ้ายังไม่มีให้ "-"
+        sec_or_group = (r.get("Section") or r.get("Student_Group") or "-").strip()
+        typ = (r.get("Type") or "").lower()
+
+        s = _mins(r.get("StartTime") or "")
+        e = _mins(r.get("StopTime") or "")
+        dur = max(0, e - s)
+
+        key = (code, sec_or_group)
+        g = groups.setdefault(key, {
+            "course_code": code,
+            "subject_name": name,
+            "group": sec_or_group,
+            "hours_theory_min": 0,
+            "hours_lab_min": 0,
+            "hours_total_min": 0,
+        })
+        if "lab" in typ:
+            g["hours_lab_min"] += dur
+        else:
+            g["hours_theory_min"] += dur
+        g["hours_total_min"] += dur
+
+    def to_hr(m):  # นาที -> ชั่วโมงทศนิยม 1 ตำแหน่ง
+        return round(m / 60.0, 1)
+
+    rows = []
+    tot_t, tot_l, tot_all = 0, 0, 0
+    idx = 1
+    for (_code, _grp), g in sorted(groups.items(), key=lambda x: (x[0][0], x[0][1])):
+        t = g["hours_theory_min"]; l = g["hours_lab_min"]; a = g["hours_total_min"]
+        rows.append({
+            "no": idx,
+            "course_code": g["course_code"],
+            "subject_name": g["subject_name"],
+            "group": g["group"],       # ใช้แทน “กลุ่มเรียน”
+            "hours_t": to_hr(t),
+            "hours_l": to_hr(l),
+            "hours_sum": to_hr(a),
+        })
+        idx += 1
+        tot_t += t; tot_l += l; tot_all += a
+
+    totals = {"hours_t": to_hr(tot_t), "hours_l": to_hr(tot_l), "hours_sum": to_hr(tot_all)}
+    return {"rows": rows, "totals": totals}
+
+# ---- ช่วยแปลงเวลา HH:MM -> นาที ----
+def _tmin_str(s: str) -> int | None:
+    try:
+        hh, mm = str(s or "00:00").split(":")
+        return int(hh) * 60 + int(mm)
+    except Exception:
+        return None
+
+def _overlap_time(a_s: str, a_e: str, b_s: str, b_e: str) -> bool:
+    """ทับช่วงมาตรฐาน: new_start < old_stop และ new_stop > old_start"""
+    a1, a2 = _tmin_str(a_s), _tmin_str(a_e)
+    b1, b2 = _tmin_str(b_s), _tmin_str(b_e)
+    if None in (a1, a2, b1, b2):
+        return False
+    return (a1 < b2) and (a2 > b1)
+
+def _filter_pre_overlaps(items: list[dict]) -> list[dict]:
+    """
+    คืนรายการที่ 'ตัด PRE ที่ทับกับ GA' ออก เพื่อให้ PDF = หน้าเว็บ
+    - ไม่ยุ่งกับ ACT
+    - ใช้หลังจาก _get_items_for_entity() (ซึ่งฟิลเตอร์ตาม view/key แล้ว)
+    """
+    ga = [x for x in items if (x.get("Source") or "").upper() in {"GA", "GENERATED"}]
+    out = []
+    for r in items:
+        src = (r.get("Source") or "").upper()
+        if src != "PRE":
+            out.append(r)
+            continue
+        # ถ้า PRE ทับกับ GA ในวันเดียวกัน -> ตัดทิ้ง
+        day = r.get("Day", "")
+        keep = True
+        for g in ga:
+            if (g.get("Day", "") == day) and _overlap_time(r.get("StartTime",""), r.get("StopTime",""),
+                                                          g.get("StartTime",""), g.get("StopTime","")):
+                keep = False
+                break
+        if keep:
+            out.append(r)
+    return out
+
+def _build_cells_for_day(blocks: list[dict], slots: int) -> list[dict]:
+    """
+    แปลงบล็อกที่ merge แล้วเป็น cells ให้ template ใช้
+    - ใส่ html (หลายบรรทัด) ให้พร้อมเรนเดอร์
+    """
+    bs = sorted(blocks, key=lambda x: x["sh"])
+    out = []
+    idx = 0
+    i = 0
+    while idx < slots:
+        # เริ่มกล่องที่ column นี้พอดี
+        if i < len(bs) and bs[i]["sh"] == idx:
+            b = bs[i]
+            span = max(1, b["eh"] - b["sh"])
+            html = "<br>".join([str(x) for x in b.get("lines", [])]) or "&nbsp;"
+            out.append({
+                "render": True,
+                "colspan": span,
+                "block": {
+                    "html": html,
+                    "type": (b.get("Type") or ""),
+                    "phase_label": _phase_label(b.get("Type"))
+                }
+            })
+            idx += span
+            i += 1
+            continue
+
+        # ถ้าอยู่ภายในช่วงของกล่องก่อนหน้า → ข้ามช่อง
+        inside = any(b["sh"] < idx < b["eh"] for b in bs[i:])
+        if inside:
+            idx += 1
+            continue
+
+        # ช่องว่าง
+        out.append({"render": True})
+        idx += 1
+
+    return out
+
+# --- NEW: make summary rows for bottom table in PDF ---
+def _build_summary_rows(items: list[dict]) -> list[dict]:
+    """
+    รวมแถวซ้ำให้เหลือ 1 รายการต่อ (รหัสวิชา, ชื่อวิชา, ภาค, กลุ่ม, เซคชัน)
+    ใช้ข้อมูลเดียวกับหน้าเว็บ => จะตรงกัน
+    """
+    seen = set()
+    rows = []
+    for r in items:
+        code   = (r.get("Course_Code")   or "").strip()
+        name   = (r.get("Subject_Name")  or "").strip()
+        phase  = (r.get("Type")          or "").strip().lower()  # "theory"/"lab"/"activity"
+        group  = (r.get("Student_Group") or "").strip()
+        sect   = (r.get("Section")       or "").strip()
+
+        # ปัด label ให้สวย
+        if phase == "theory": phase = "ทฤษฎี"
+        elif phase == "lab":  phase = "ปฏิบัติ"
+        elif phase == "activity": phase = "กิจกรรม"
+
+        key = (code, name, phase, group, sect)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        rows.append({
+            "code": code,
+            "name": name,
+            "phase": phase,
+            "group": group or "-",
+            "section": sect or "-",
+        })
+
+    # เรียงเพื่ออ่านง่าย
+    rows.sort(key=lambda x: (x["code"], x["section"], x["group"], x["phase"]))
+    # เติมลำดับ
+    for i, r in enumerate(rows, 1):
+        r["idx"] = i
+    return rows
+
+# ---------- เรนเดอร์ HTML -> PDF ----------
+def _render_pdf_html(context: dict) -> bytes:
     
+    html = render_to_string("timetable_pdf.html", context)
 
+    try:
+        import pdfkit
+    except Exception as e:
+        logger.exception("pdfkit import failed")
+        raise RuntimeError(f"pdfkit import failed: {e}") from e
+
+    options = {
+        "encoding": "UTF-8",
+        "page-size": "A4",
+        "orientation": "Landscape",
+        "margin-top": "14mm",
+        "margin-right": "12mm",
+        "margin-bottom": "14mm",
+        "margin-left": "12mm",
+        "enable-local-file-access": None,
+        "quiet": "",
+        "grayscale": "",
+    }
+    
+    config = None
+    wkhtml = getattr(settings, "WKHTMLTOPDF_CMD", None)
+    if wkhtml:
+        config = pdfkit.configuration(wkhtmltopdf=wkhtml)
+
+    try:
+        # False => คืนค่าเป็น bytes
+        pdf_bytes = pdfkit.from_string(html, False, options=options, configuration=config)
+        return pdf_bytes
+    except Exception as e:
+        logger.exception("pdfkit render failed")
+        raise RuntimeError(f"wkhtmltopdf render failed: {e}") from e
+
+# ---------- สร้างชื่อไฟล์สวย ๆ ----------
+def _safe_filename(s: str) -> str:
+    return re.sub(r'[\\/*?:"<>|]+', "_", s).strip() or "file"
+
+# ---------- 1) PDF เดี่ยว ----------
+@csrf_exempt
+@require_http_methods(["GET"])
+def export_pdf_single(request):
+    """
+    /api/export/pdf/?view=teacher&key=อ.สมหมาย ใจดี
+    """
+    view = (request.GET.get("view") or "teacher").lower().strip()
+    key  = (request.GET.get("key") or "").strip()
+    if not key:
+        return JsonResponse({"status":"error","message":"missing key"}, status=400, json_dumps_params={"ensure_ascii": False})
+
+    items = _get_items_for_entity(view, key)
+    items = _filter_pre_overlaps(items)
+    grid  = _build_grid(items)
+
+    days_ctx = []
+    for d in TT_DAY_ORDER:
+        blocks = grid["blocks_by_day"].get(d, [])
+        cells  = _build_cells_for_day(blocks, grid["slots"])
+        days_ctx.append({"name": d, "cells": cells})
+
+    summary = _build_summary_rows(items)
+
+    ctx = {
+        "title": f"ตารางสอน - {key}",
+        "view": view,
+        "entity_name": key,
+        "slot_labels": grid["slot_labels"],
+        "slots": range(grid["slots"]),
+        "days": days_ctx,
+        "summary_rows": summary,
+    }
+    
+    summary = _aggregate_detail(items)
+    ctx["detail_rows"] = summary["rows"]
+    ctx["detail_totals"] = summary["totals"]
+    
+    pdf_bytes = _render_pdf_html(ctx)
+    resp = HttpResponse(pdf_bytes, content_type="application/pdf")
+    resp["Content-Disposition"] = f'attachment; filename="{_safe_filename(key)}.pdf"'
+    return resp
+
+# ---------- 2) PDF หลายไฟล์ (ZIP) ----------
+@csrf_exempt
+@require_http_methods(["POST"])
+def export_pdf_batch(request):
+    
+    try:
+        data = json.loads(request.body or "{}")
+        view = (data.get("view") or "teacher").lower().strip()
+        keys = [k for k in (data.get("keys") or []) if str(k).strip()]
+        if not keys:
+            return JsonResponse({"status":"error","message":"no keys"}, status=400,
+                                json_dumps_params={"ensure_ascii": False})
+
+        mem = BytesIO()
+        with ZipFile(mem, "w", ZIP_DEFLATED) as zf:
+            for key in keys:
+                
+                items = _get_items_for_entity(view, key)
+                items = _filter_pre_overlaps(items)
+                grid  = _build_grid(items)
+                
+                days_ctx = []
+                for d in TT_DAY_ORDER:
+                    blocks = grid["blocks_by_day"].get(d, [])
+                    cells  = _build_cells_for_day(blocks, grid["slots"])
+                    days_ctx.append({"name": d, "cells": cells})
+
+                summary = _build_summary_rows(items)
+
+                ctx = {
+                    "title": f"ตารางสอน - {key}",
+                    "view": view,
+                    "entity_name": key,
+                    "slot_labels": grid["slot_labels"],
+                    "slots": range(grid["slots"]),
+                    "days": days_ctx,
+                    "summary_rows": summary,
+                }
+                
+                summary = _aggregate_detail(items)
+                ctx["detail_rows"] = summary["rows"]
+                ctx["detail_totals"] = summary["totals"]
+                
+                pdf = _render_pdf_html(ctx)
+                zf.writestr(f"{_safe_filename(key)}.pdf", pdf)
+
+        mem.seek(0)
+        resp = HttpResponse(mem.read(), content_type="application/zip")
+        resp["Content-Disposition"] = 'attachment; filename="timetables.zip"'
+        return resp
+    except Exception as e:
+        logger.exception("export_pdf_batch error")
+        return JsonResponse({"status":"error","message":str(e)}, status=500,
+                            json_dumps_params={"ensure_ascii": False})
+
+@login_required(login_url='/login/')
+def weekactivity(request):
+    return render(request, 'weekactivity.html', {"active_tab": "weekactivity"})
+@login_required(login_url='/login/')
+def about(request):
+    return render(request, 'about.html', {"active_tab": "about"})
+        

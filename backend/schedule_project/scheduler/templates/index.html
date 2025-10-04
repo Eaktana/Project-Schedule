@@ -88,22 +88,32 @@
     .btn-amber:hover {
       background-color: #fbbf24;
       border-color: #d97706;
+    }
 
     /* default */
     .day-badge{
       --bs-badge-bg: #f8f9fa;
       --bs-badge-color: #212529;
     }
-    /* mapping ตามวัน */
-    .day-badge[data-day="จันทร์"]    { --bs-badge-bg:#2563eb; --bs-badge-color:#fff; }
-    .day-badge[data-day="อังคาร"]   { --bs-badge-bg:#0ea5e9; --bs-badge-color:#fff; }
-    .day-badge[data-day="พุธ"]      { --bs-badge-bg:#10b981; --bs-badge-color:#fff; }
-    .day-badge[data-day="พฤหัสบดี"] { --bs-badge-bg:#f59e0b; --bs-badge-color:#fff; }
-    .day-badge[data-day="ศุกร์"]    { --bs-badge-bg:#ef4444; --bs-badge-color:#fff; }
-    .day-badge[data-day="เสาร์"]    { --bs-badge-bg:#8b5cf6; --bs-badge-color:#fff; }
-    .day-badge[data-day="อาทิตย์"]  { --bs-badge-bg:#f43f5e; --bs-badge-color:#fff; }
 
-  }
+    /* === Danger (Red) Gradient Button === */
+    .btn-danger-gradient{
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color:#fff !important;
+      border:none;
+      border-radius:12px;
+      padding:.45rem .8rem;
+      font-weight:600;
+      transition:.2s;
+    }
+    .btn-danger-gradient:hover{
+      background: linear-gradient(135deg, #f87171, #ef4444);
+      transform: translateY(-1px);
+      color:#fff !important;
+    }
+    /* ให้ไอคอนเป็นสีขาวเสมอ */
+    .btn-danger-gradient .bi{ color:#fff !important; }
+
   </style>
 </head>
 <body>
@@ -371,8 +381,9 @@
                 <button type="button" class="btn btn-outline-dark btn-sm w-100 tt-btn-slim" id="btnDownloadAll">
                   <i class="bi bi-file-earmark-arrow-down me-1"></i> ทั้งหมด
                 </button>
-                <button type="button" class="btn btn-dark btn-sm w-100 tt-btn-slim" id="btnSelectDownload">
-                  <i class="bi bi-check2-square me-1"></i> ทีละไฟล์
+                <button id="btnSelectDownload"
+                        class="btn btn-outline-dark btn-sm w-100 tt-btn-slim">
+                  เลือกไฟล์
                 </button>
               </div>
             </div>
@@ -425,7 +436,7 @@
   <!-- ตารางแสดงข้อมูล ------------------------------------------------------------------------->
   <!-- Modal: รายการที่สร้างแล้ว (GeneratedSchedule) -->
   <div class="modal fade" id="generatedListModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" style="--bs-modal-width: 90vw;">
       <div class="modal-content rounded-4 overflow-hidden">
         <div class="modal-header border-0 text-white" style="background:#6f42c1;">
           <h5 class="modal-title">
@@ -434,10 +445,10 @@
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
 
-        <div class="modal-body">
+        <div class="modal-body overflow-auto">
           <div class="table-responsive">
-            <table class="table table-hover mb-0" id="generatedTable">
-              <thead>
+            <table class="table table-hover mb-0" id="generatedTable" style="min-width:1600px">
+              <thead class="text-nowrap text-center">
                 <tr>
                   <th>อาจารย์</th>
                   <th>รหัสวิชา</th>
@@ -456,40 +467,40 @@
               <tbody>
                 {% for gen in generated_schedules %}
                 <tr data-id="{{ gen.id }}">
-                  <td>{{ gen.teacher }}</td>
-                  <td><span class="badge bg-primary">{{ gen.subject_code }}</span></td>
-                  <td>{{ gen.subject_name }}</td>
-                  <td><span class="badge bg-info">{{ gen.type|default:"-" }}</span></td>
-                  <td><span class="badge bg-black">{{ gen.student_group|default:"-" }}</span></td>
-                  <td><span class="badge bg-success">{{ gen.hours|default:"-" }}</span></td>
-                  <td><span class="badge bg-warning">{{ gen.section|default:"-" }}</span></td>
+                  <td><span class="badge" style="background:#00000020;color:#111;">{{ gen.teacher }}</span></td>
+                  <td><span class="badge bg-primary text-center">{{ gen.subject_code }}</span></td>
+                  <td><span class="badge" style="background:#65baff65;color:#111;">{{ gen.subject_name }}</span></td>
+                  <td><span class="badge" style="background:#00000020;color:#111;">{{ gen.type|default:"-" }}</span></td>
+                  <td><span class="badge" style="background:#00000020;color:#111;">{{ gen.student_group|default:"-" }}</span></td>
+                  <td><span class="badge" style="background:#00000020;color:#111;">{{ gen.hours|default:"-" }}</span></td>
+                  <td><span class="badge" style="background:#00000020;color:#111;">{{ gen.section|default:"-" }}</span></td>
                   <td>
                     {% if gen.day_of_week == "จันทร์" %}
-                      <span class="badge" style="background:#ffd900;color:#fff;">จันทร์</span>
+                      <span class="badge" style="background:#ffea70;color:#111;">จันทร์</span>
                     {% elif gen.day_of_week == "อังคาร" %}
-                      <span class="badge" style="background:#ff00ea;color:#fff;">อังคาร</span>
+                      <span class="badge" style="background:#fd96b9;color:#111;">อังคาร</span>
                     {% elif gen.day_of_week == "พุธ" %}
-                      <span class="badge" style="background:#00ff55;color:#fff;">พุธ</span>
+                      <span class="badge" style="background:#9dff9d;color:#111;">พุธ</span>
                     {% elif gen.day_of_week == "พฤหัสบดี" %}
-                      <span class="badge" style="background:#ff9900;color:#111;">พฤหัสบดี</span>
+                      <span class="badge" style="background:#ffc56f;color:#111;">พฤหัสบดี</span>
                     {% elif gen.day_of_week == "ศุกร์" %}
-                      <span class="badge" style="background:#00d9ff;color:#fff;">ศุกร์</span>
+                      <span class="badge" style="background:#a7f2ff;color:#111;">ศุกร์</span>
                     {% elif gen.day_of_week == "เสาร์" %}
-                      <span class="badge" style="background:#8b5cf6;color:#fff;">เสาร์</span>
+                      <span class="badge" style="background:#b799fd;color:#111;">เสาร์</span>
                     {% elif gen.day_of_week == "อาทิตย์" %}
-                      <span class="badge" style="background:#ff1f1f;color:#fff;">อาทิตย์</span>
+                      <span class="badge" style="background:#ff6d6d;color:#111;">อาทิตย์</span>
                     {% else %}
                       <span class="badge" style="background:#f1f3f5;color:#212529;">{{ gen.day_of_week|default:"—" }}</span>
                     {% endif %}
                   </td>
-                  <td>{{ gen.start_time|time:"H:i" }}</td>
-                  <td>{{ gen.stop_time|time:"H:i" }}</td>
-                  <td>{{ gen.room|default:"-" }}</td>
+                  <td><span class="badge" style="background:#00000020;color:#111;">{{ gen.start_time|time:"H:i" }}</span></td>
+                  <td><span class="badge" style="background:#00000020;color:#111;">{{ gen.stop_time|time:"H:i" }}</span></td>
+                  <td><span class="badge" style="background:#00000020;color:#111;">{{ gen.room|default:"-" }}</span></td>
                   <td class="text-nowrap">
                     <div class="d-inline-flex gap-2 align-items-center">
                       <button class="btn btn-danger-gradient btn-sm d-inline-flex align-items-center"
-                              onclick="confirmDelete(this)" title="ลบ">
-                        <i class="bi bi-trash me-1"></i> 
+                              onclick="handleDeleteGenerated(this)" title="ลบ">
+                        <i class="bi bi-trash me-1"></i>
                       </button>
                     </div>
                   </td>
@@ -503,15 +514,58 @@
         </div>
 
         <div class="modal-footer border-0">
-          <button type="button" class="btn btn-outline-danger" onclick="deleteAllGenerated()">
+          <button type="button" class="btn btn-outline-danger"
+                  data-bs-toggle="modal" data-bs-target="#confirmDeleteAllGeneratedModal">
             <i class="bi bi-trash3 me-2"></i>ลบทั้งหมด
           </button>
+        </div>
+      </div> 
+    </div>  
+  </div>    
+  
+   <!-- Confirm Delete (single) Modal -->
+  <div class="modal fade" id="confirmDeleteGeneratedModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-4 overflow-hidden">
+        <div class="modal-header border-0 bg-danger text-white">
+          <h5 class="modal-title"><i class="bi bi-trash3 me-2"></i>ยืนยันการลบ</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          ต้องการลบ <span class="fw-semibold" id="del_gen_name">-</span> ใช่ไหม?
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">ยกเลิก</button>
+          <button type="button" class="btn btn-danger" id="btnConfirmDeleteGenerated">ลบ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Delete All Modal -->
+  <div class="modal fade" id="confirmDeleteAllGeneratedModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-4 overflow-hidden">
+        <div class="modal-header border-0 bg-danger text-white">
+          <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2"></i>ลบวิชาล่วงหน้าทั้งหมด</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          ต้องการลบ <span class="fw-semibold">วิชาล่วงหน้าทั้งหมด</span> ใช่ไหม? การกระทำนี้ไม่สามารถย้อนกลับได้
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">ยกเลิก</button>
+          <button type="button" class="btn btn-danger" id="btnConfirmDeleteAllGenerated">ลบทั้งหมด</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div id="toastHost" class="toast-container position-fixed top-0 end-0 p-3" style="z-index:1080"></div>
 
   <!-- Bootstrap + App JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-  <script src="{% static 'js/index.js' %}?v=5"></script>
+  <script src="{% static 'js/index.js' %}?v=6"></script>
 
 </body>
 </html>
