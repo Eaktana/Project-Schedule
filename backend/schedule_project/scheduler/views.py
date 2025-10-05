@@ -1425,16 +1425,23 @@ def upload_pre_csv(request):
         )
 
 # ========== ACTIVITY APIs ==========
-def _overlap_exists(day: str, start: time, stop: time, exclude_id: int | None = None):
-    """
-    คืน queryset ของกิจกรรมที่ 'ทับช่วงเวลา' ในวันเดียวกัน
-    เงื่อนไขทับช่วงมาตรฐาน: new_start < old_stop และ new_stop > old_start
-    """
-    qs = WeekActivity.objects.filter(day_activity=day)\
-        .filter(start_time_activity__lt=stop, stop_time_activity__gt=start)
+def _overlap_exists(day, start_time, stop_time, exclude_id=None, created_by=None):
+    qs = WeekActivity.objects.filter(day_activity=day)
+    if created_by:
+        qs = qs.filter(created_by=created_by)
+
     if exclude_id:
         qs = qs.exclude(id=exclude_id)
-    return qs
+
+    # ✅ เช็คซ้ำแบบ boolean
+    for w in qs:
+        if (
+            (start_time >= w.start_time_activity and start_time < w.stop_time_activity)
+            or (stop_time > w.start_time_activity and stop_time <= w.stop_time_activity)
+            or (start_time <= w.start_time_activity and stop_time >= w.stop_time_activity)
+        ):
+            return True
+    return False
 
 @login_required(login_url='/login/')
 def weekactivity(request):
@@ -1522,19 +1529,11 @@ def add_activity(request):
 
         # 2) ห้ามทับช่วงเวลาในวันเดียวกัน
         conflicts = _overlap_exists(day, start_time, stop_time, created_by=request.user)
-        if conflicts.exists():
-            c = conflicts.first()
+        if _overlap_exists(day, start_time, stop_time, created_by=request.user):
             return JsonResponse(
-                {
-                    "status": "error",
-                    "message": (
-                        "ช่วงเวลานี้ถูกใช้ไปแล้วในวันเดียวกัน: "
-                        f"{c.act_name_activity} "
-                        f"{c.start_time_activity.strftime('%H:%M')}–{c.stop_time_activity.strftime('%H:%M')}"
-                    ),
-                },
-                status=400, json_dumps_params={"ensure_ascii": False},
-            )
+        {"status": "error", "message": "เวลานี้ซ้ำกับกิจกรรมอื่น"},
+        status=400, json_dumps_params={"ensure_ascii": False},
+        )
 
         # ผ่านตรวจ -> สร้าง
         activity = WeekActivity.objects.create(
@@ -1580,8 +1579,8 @@ def add_activity_bulk(request):
             # กันซ้ำใน user นี้
             if WeekActivity.objects.filter(act_name_activity=name, created_by=request.user).exists():
                 continue
-            if _overlap_exists(day, start_time, stop_time, request.user).exists():
-                continue
+            if _overlap_exists(day, start_time, stop_time, created_by=request.user):
+                return JsonResponse({"status": "error", "message": "เวลานี้ซ้ำกับกิจกรรมอื่น"})
 
             act = WeekActivity.objects.create(
                 act_name_activity=name,
@@ -1637,19 +1636,12 @@ def update_activity(request, id):
 
         # 2) ห้ามทับช่วงเวลา (ยกเว้นตัวเอง)
         conflicts = _overlap_exists(day, start_time, stop_time, exclude_id=activity.id)
-        if conflicts.exists():
-            c = conflicts.first()
+        if _overlap_exists(day, start_time, stop_time, exclude_id=activity.id, created_by=request.user):
             return JsonResponse(
-                {
-                    "status": "error",
-                    "message": (
-                        "ช่วงเวลานี้ถูกใช้ไปแล้วในวันเดียวกัน: "
-                        f"{c.act_name_activity} "
-                        f"{c.start_time_activity.strftime('%H:%M')}–{c.stop_time_activity.strftime('%H:%M')}"
-                    ),
-                },
+                {"status": "error", "message": "เวลานี้ซ้ำกับกิจกรรมอื่น"},
                 status=400, json_dumps_params={"ensure_ascii": False},
             )
+
 
         # ผ่านตรวจ -> บันทึก
         activity.act_name_activity = name
@@ -1864,20 +1856,19 @@ def subject(request):
 @require_http_methods(["GET", "POST"])
 def subjects_collection(request):
     if request.method == "GET":
-        # --- params: q, order, limit, offset ---
         q = (request.GET.get("q") or "").strip()
-        order = (request.GET.get("order") or "-id").strip()   # ค่าเริ่มต้น: ล่าสุดมาก่อน
+        order = (request.GET.get("order") or "-id").strip()
         try:
-            limit = int(request.GET.get("limit") or 500)      # ค่าเริ่มต้น: 500 แถว
+            limit = int(request.GET.get("limit") or 500)
             offset = int(request.GET.get("offset") or 0)
         except ValueError:
             limit, offset = 500, 0
 
-        qs = Subject.objects.all()
+        # ✅ ดึงเฉพาะของ user คนนี้เท่านั้น
+        qs = Subject.objects.filter(created_by=request.user)
         if q:
             qs = qs.filter(Q(code__icontains=q) | Q(name__icontains=q))
 
-        # ปลอดภัยกับ order เฉพาะฟิลด์ที่อนุญาต
         allowed = {"id", "code", "name", "-id", "-code", "-name"}
         order = order if order in allowed else "-id"
         qs = qs.order_by(order)
@@ -1888,19 +1879,23 @@ def subjects_collection(request):
         items = list(qs.values("id", "code", "name"))
         return JsonResponse(items, safe=False, json_dumps_params={"ensure_ascii": False})
 
-    # POST: create/update-or-create
+    # POST
     data = json.loads(request.body or "{}")
     code = (data.get("code") or "").strip().upper()
     name = (data.get("name") or "").strip()
     if not code or not name:
-        return JsonResponse({"message": "กรอก code และ name ให้ครบ"}, status=400, json_dumps_params={"ensure_ascii": False})
+        return JsonResponse(
+            {"message": "กรอก code และ name ให้ครบ"},
+            status=400, json_dumps_params={"ensure_ascii": False}
+        )
 
     obj, created = Subject.objects.update_or_create(
-        code=code, 
-        created_by=request.user,   # ✅ ผูกกับ user
-        defaults={"name": name})
+        code=code,
+        created_by=request.user,  # ✅ ผูกกับ user
+        defaults={"name": name}
+    )
     return JsonResponse({"id": obj.id, "created": created}, json_dumps_params={"ensure_ascii": False})
-
+    
 @login_required(login_url="/login/")
 @csrf_exempt
 @require_http_methods(["PUT", "DELETE"])
@@ -2999,7 +2994,7 @@ def timetable_by_entity(request):
         return JsonResponse({"status": "error", "message": "missing key"}, status=400)
 
     # ใช้ตัวรวบรวมข้อมูลแทนลูปเดิมทั้งหมด
-    items = _collect_timetable_items(view, key)
+    items = _collect_timetable_items(view, key, request.user)
 
     return JsonResponse(
         {"status": "success", "key": key, "view": view, "items": items},
@@ -3070,7 +3065,7 @@ def _collect_timetable_items(view: str, key: str, user):
 
 # ---------- แกนกลาง: ดึงข้อมูล "เหมือนในตารางโมดัล" ----------
 def _get_items_for_entity(view: str, key: str):
-    return _collect_timetable_items(view, key)
+    return _collect_timetable_items(view, key, request.user)
 
 # ---------- จัด block ต่อเนื่อง & เตรียม grid ----------
 TT_DAY_ORDER = ["จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์","อาทิตย์"]

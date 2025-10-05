@@ -3,7 +3,6 @@ from . import views
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from scheduler import views
-from django.contrib.auth import views as auth_views
 from django.contrib.auth.views import LogoutView
 urlpatterns = [
     

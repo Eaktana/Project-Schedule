@@ -14,9 +14,14 @@ class CourseSchedule(models.Model):
         User, on_delete=models.CASCADE, related_name="courses",
         null=True, blank=True
     )
-    
+
+    class Meta:
+        unique_together = ("subject_code_course", "section_course", "created_by")  # ✅ สำคัญมาก
+        ordering = ["subject_code_course"]
+
     def __str__(self):
         return f"{self.teacher_name_course} - {self.subject_name_course}"
+
 
 class PreSchedule(models.Model):
     teacher_name_pre = models.CharField(max_length=100)
@@ -88,21 +93,21 @@ class Timedata(models.Model):
         return f"{self.day_of_week}"
 
 class Subject(models.Model):
-    code = models.CharField(max_length=20, unique=True)
+    code = models.CharField(max_length=20)  # ❌ ลบ unique=True
     name = models.CharField(max_length=100)
     created_by = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="subjects"
     )
 
     class Meta:
-        unique_together = ("code", "created_by")
+        unique_together = ("code", "created_by")  # ✅ กันซ้ำเฉพาะของ user เดียวกัน
         ordering = ["code"]
 
     def __str__(self):
-        return f"{self.code} {self.name}"
+        return f"{self.code} - {self.name}"
 
 class Teacher(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=100)
     created_by = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="teachers",
         null=True, blank=True
@@ -116,7 +121,7 @@ class Teacher(models.Model):
         return self.name
 
 class GroupType(models.Model):
-    name = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=50)
     created_by = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="group_types",
         null=True, blank=True
@@ -130,7 +135,7 @@ class GroupType(models.Model):
         return self.name
 
 class StudentGroup(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=100)
     group_type = models.ForeignKey(
         GroupType, on_delete=models.PROTECT, related_name="student_groups"
     )
@@ -202,7 +207,7 @@ class GroupAllow(models.Model):
         return f"{self.group_type} -> {self.slot}"
 
 class RoomType(models.Model):
-    name = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=50)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
 
     class Meta:
@@ -213,7 +218,7 @@ class RoomType(models.Model):
         return self.name
 
 class Room(models.Model):
-    name = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=50)
     room_type = models.ForeignKey(RoomType, on_delete=models.CASCADE)
     created_by = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="rooms",

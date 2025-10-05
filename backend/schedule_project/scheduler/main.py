@@ -84,13 +84,13 @@ def fetch_all_from_db(user) -> Dict[str, pd.DataFrame]:
 
     # ====== Rooms (global ใช้ร่วมกัน) ======
     rooms = _qs_to_df(
-        Room.objects.select_related("room_type"),
+        Room.objects.select_related("room_type").filter(created_by=user),
         ["id", "name", "room_type__name"],
     ).rename(columns={"name": "room_name", "room_type__name": "room_type"})
 
     # ====== GroupAllows (global ใช้ร่วมกัน) ======
     groupallows = _qs_to_df(
-        GroupAllow.objects.select_related("group_type", "slot"),
+        GroupAllow.objects.select_related("group_type", "slot").filter(created_by=user),
         [
             "id",
             "group_type__id",
@@ -110,7 +110,7 @@ def fetch_all_from_db(user) -> Dict[str, pd.DataFrame]:
     )
 
     # ===== เติม group_type_id ให้ courses (join กับ StudentGroup) =====
-    sg_df = pd.DataFrame(list(StudentGroup.objects.values("name", "group_type_id")))
+    sg_df = pd.DataFrame(list(StudentGroup.objects.filter(created_by=user).values("name", "group_type_id")))
 
     if sg_df.empty:
         courses["group_type_id"] = pd.Series(dtype="Int64")
@@ -370,14 +370,6 @@ def initialize_population(
     seed=42,
     cancel_event=None,
 ):
-    """
-    สร้างประชากรเริ่มต้น:
-    - ลูปตาม pop_size
-    - ในแต่ละ individual: copy courses/ga_free
-    - จัดเป็นก้อนวิชา (subject_code, section, group_type_id, type, room_type_course)
-    - หา slot ที่ group_id == group_type_id และ room_type == room_type_course
-    - ถ้าวางครบ → ติดตั้งเข้าตาราง / ลบออกจาก working set
-    """
     count_runtime = 0
     rng = random.Random(seed)
 
@@ -557,8 +549,6 @@ def initialize_population(
                         r["day_of_week"], r["start_time"], "-", r["stop_time"], 
                         "room:", r["room"])
                 print("-" * 50)
-
-                # ไม่ discard busy เพื่อให้เห็นชัด ๆ ว่าก้อนไหนขาด
                 continue
 
         population.append(individual)
