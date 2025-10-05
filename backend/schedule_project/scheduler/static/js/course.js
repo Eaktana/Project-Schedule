@@ -11,6 +11,10 @@ function setSelectValue(sel, val) {
     sel.value = val;
   }
 }
+function api(url) {
+  if (!url.startsWith('/')) return '/' + url;
+  return url;
+}
 
 function composeSectionFromNum(n) {
   const num = String(n ?? '').trim();
@@ -204,10 +208,11 @@ function confirmDelete(button){
     const handler = async () => {
       try {
         btnConfirmDel.disabled = true;
-        const r = await fetch(`/api/course/delete/${pendingDeleteId}/`, {
-          method:'DELETE',
-          headers:{ 'X-CSRFToken': getCookie('csrftoken') }
-        });
+        const r = await fetch(`api/course/delete/${id}/`, {
+          method: "DELETE",
+          headers: { "X-CSRFToken": getCookie("csrftoken") },
+        })
+
         const d = await r.json();
         if (d.status === 'success') {
           flashToast('ลบข้อมูลเรียบร้อยแล้ว','success','ลบสำเร็จ');
@@ -229,7 +234,7 @@ function confirmDelete(button){
   } else {
     // fallback เดิม (ถ้าไม่มี modal)
     if(!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้?")) return;
-    fetch(`/api/course/delete/${id}/`, {
+    fetch(`api/course/delete/${id}/`, {
       method:'DELETE',
       headers:{ 'X-CSRFToken': getCookie('csrftoken') }
     })
@@ -323,7 +328,7 @@ function deleteAllCourses(){
     const handler = async () => {
       try {
         btnConfirmAll.disabled = true;
-        const r = await fetch('/api/course/delete-all/', {
+        const r = await fetch('api/course/delete-all/', {
           method:'DELETE',
           headers:{ 'X-CSRFToken': getCookie('csrftoken') }
         });
@@ -346,7 +351,7 @@ function deleteAllCourses(){
   } else {
     // fallback เดิม
     if(!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลรายวิชาทั้งหมด?")) return;
-    fetch('/api/course/delete-all/', {
+    fetch('api/course/delete-all/', {
       method:'DELETE',
       headers:{ 'X-CSRFToken': getCookie('csrftoken') }
     })

@@ -51,6 +51,7 @@ urlpatterns = [
     path("api/course/bulk/", views.add_course_bulk, name="add_course_bulk"),
     path("api/course/update/<int:id>/", views.update_course, name="update_course"),
     path("api/course/delete/<int:id>/", views.delete_course, name="delete_course"),
+
     path("upload/course-csv/", views.upload_course_csv, name="upload_course_csv"),
     path("api/course/delete-all/", views.course_delete_all, name="course_delete_all"),
     

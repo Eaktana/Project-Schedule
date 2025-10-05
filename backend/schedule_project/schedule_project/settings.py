@@ -80,7 +80,7 @@ WSGI_APPLICATION = 'schedule_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 
-DATABASES = {
+DDATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'schedule_db',

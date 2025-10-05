@@ -30,10 +30,12 @@ def _qs_to_df(qs, fields):
     return pd.DataFrame(list(qs.values(*fields)))
 
 
-def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
-    """ดึงข้อมูลดิบทั้งหมดจากฐานข้อมูล (ยังไม่กรอง/ยังไม่ประมวลผล)"""
+def fetch_all_from_db(user) -> Dict[str, pd.DataFrame]:
+    """ดึงข้อมูลดิบทั้งหมดจากฐานข้อมูลของ user (multi-user support)"""
+
+    # ====== Courses ของ user ======
     courses = _qs_to_df(
-        CourseSchedule.objects.all(),
+        CourseSchedule.objects.filter(created_by=user),
         [
             "id",
             "teacher_name_course",
@@ -47,8 +49,9 @@ def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
         ],
     )
 
+    # ====== PreSchedules ของ user ======
     preschedules = _qs_to_df(
-        PreSchedule.objects.all(),
+        PreSchedule.objects.filter(created_by=user),
         [
             "id",
             "teacher_name_pre",
@@ -66,8 +69,9 @@ def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
         ],
     )
 
+    # ====== WeekActivities ของ user ======
     weekactivities = _qs_to_df(
-        WeekActivity.objects.all(),
+        WeekActivity.objects.filter(created_by=user),
         [
             "id",
             "act_name_activity",
@@ -78,11 +82,13 @@ def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
         ],
     )
 
+    # ====== Rooms (global ใช้ร่วมกัน) ======
     rooms = _qs_to_df(
         Room.objects.select_related("room_type"),
         ["id", "name", "room_type__name"],
     ).rename(columns={"name": "room_name", "room_type__name": "room_type"})
 
+    # ====== GroupAllows (global ใช้ร่วมกัน) ======
     groupallows = _qs_to_df(
         GroupAllow.objects.select_related("group_type", "slot"),
         [
@@ -103,7 +109,7 @@ def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
         }
     )
 
-    # ===== เติม group_type_id ให้ courses โดยไม่แก้สคีมา =====
+    # ===== เติม group_type_id ให้ courses (join กับ StudentGroup) =====
     sg_df = pd.DataFrame(list(StudentGroup.objects.values("name", "group_type_id")))
 
     if sg_df.empty:
@@ -114,12 +120,6 @@ def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
         courses["sg_name_clean"] = (
             courses["student_group_name_course"].fillna("").str.strip()
         )
-        # pd.set_option("display.max_rows", None)   # แสดงทุกแถว
-        # pd.set_option("display.max_colwidth", None)  # ให้ข้อความยาวแค่ไหนก็แสดงครบ
-
-        # print(sg_df["name_clean"])
-        # print(courses["sg_name_clean"])
-        # exit()
 
         courses = courses.merge(
             sg_df[["name_clean", "group_type_id"]],
@@ -127,10 +127,8 @@ def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
             right_on="name_clean",
             how="left",
         )
-        # .drop(columns=["name_clean", "sg_name_clean"])
 
         courses["group_type_id"] = courses["group_type_id"].astype("Int64")
-    # ===== จบส่วนเติม group_type_id =====
 
     return {
         "courses": courses,
@@ -923,7 +921,8 @@ def run_genetic_algorithm(
 
 
 # ==================== layer 4 end ==========================
-def save_ga_result(schedule_rows):
+def save_ga_result(schedule_rows, user):
+    """บันทึกผลลัพธ์ของ Genetic Algorithm ลงฐานข้อมูล โดยผูกกับ user"""
     objs = []
     for row in schedule_rows:
         objs.append(
@@ -939,46 +938,45 @@ def save_ga_result(schedule_rows):
                 start_time=row["start_time"],
                 stop_time=row["stop_time"],
                 room=row.get("room"),
+                created_by=user,   # ✅ ผูกกับ user
             )
         )
     GeneratedSchedule.objects.bulk_create(objs)
 
 
-def run_genetic_algorithm_from_db(cancel_event=None) -> Dict[str, Any]:
-    """ดึงข้อมูลทั้งหมด + เตรียมข้อมูลสำหรับ Genetic Algorithm (ยังไม่รันจริง)"""
+def run_genetic_algorithm_from_db(user, cancel_event=None) -> Dict[str, Any]:
+    """ดึงข้อมูลเฉพาะของ user แล้วรัน Genetic Algorithm"""
+    if user is None:
+        raise ValueError("run_genetic_algorithm_from_db() ต้องการ user ที่ล็อกอินแล้ว")
+
     # ========= layer 1 ============
-    data = fetch_all_from_db()
+    data = fetch_all_from_db(user)  # ✅ ดึงเฉพาะข้อมูลของ user
     data["groupallows"] = apply_groupallow_blocking(
         data["groupallows"], data["weekactivities"]
     )
-    # print(tabulate(data["groupallows"], headers="keys", tablefmt="grid", showindex=False))
-    # exit()
 
     # ========= layer 2 ============
     ga_with_rooms = expand_groupallows_with_rooms(data["groupallows"], data["rooms"])
-    time_slot = apply_preschedule_blocking(ga_with_rooms, data["preschedules"])
-    data["time_slot"] = time_slot
-
-    # print(tabulate(data["time_slot"], headers="keys", tablefmt="grid", showindex=False))
-    # exit()
+    data["time_slot"] = apply_preschedule_blocking(
+        ga_with_rooms, data["preschedules"]
+    )
 
     # ========= layer 3 ============
     data["courses"] = explode_courses_to_units(data["courses"])
-    print("=== success ===")
+
     # ========= layer 4 ============
     try:
         result = run_genetic_algorithm(
             data, generations=10, pop_size=10, cancel_event=cancel_event
         )
     except GenerationCancelled:
-        # ไม่เซฟผลลัพธ์ และโยนขึ้นไป/หรือคืนสถานะให้ view ตัดสินใจ
-        # ทางเลือกที่ 1: ส่งต่อให้ view จับแล้วตอบ 204
-        raise
-        # ทางเลือกที่ 2 (ถ้าอยากคืน dict):
-        # return {"status": "cancelled"}
+        raise  # ให้ views.py ดักและตอบ status 204
 
-    print("=== success ===")
-    save_ga_result(result["schedule"])   # ← จะไม่เรียกถึงบรรทัดนี้ถ้า raise จากด้านบน
+    # ✅ เคลียร์ตารางเก่าของ user ก่อน save ใหม่
+    GeneratedSchedule.objects.filter(created_by=user).delete()
+
+    # ✅ บันทึกผลใหม่
+    save_ga_result(result["schedule"], user)
 
     best_sched = result["schedule"]
     return {

@@ -203,11 +203,8 @@ class GroupAllow(models.Model):
 
 class RoomType(models.Model):
     name = models.CharField(max_length=50, unique=True)
-    created_by = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="room_types",
-        null=True, blank=True
-    )
-    
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+
     class Meta:
         unique_together = ("name", "created_by")
         ordering = ["name"]
@@ -217,9 +214,7 @@ class RoomType(models.Model):
 
 class Room(models.Model):
     name = models.CharField(max_length=50, unique=True)
-    room_type = models.ForeignKey(
-        RoomType, on_delete=models.PROTECT, related_name="rooms"
-    )
+    room_type = models.ForeignKey(RoomType, on_delete=models.CASCADE)
     created_by = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="rooms",
         null=True, blank=True

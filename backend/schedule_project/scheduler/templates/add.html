@@ -25,7 +25,30 @@
         <div class="col-md-6">
           <div class="d-flex justify-content-end align-items-center">
             <a class="btn btn-outline-secondary me-3" href="#"><i class="bi bi-file-text me-2"></i>คู่มือ</a>
-            <a class="btn btn-outline-primary" href="#"><i class="bi bi-person me-2"></i>เกี่ยวกับเรา</a>
+            <a class="btn btn-outline-primary" href="{% url 'about' %}"><i class="bi bi-person me-2"></i>เกี่ยวกับเรา</a>
+            <!-- Login / Logout -->
+            <ul class="navbar-nav flex-row gap-2">
+              {% if user.is_authenticated %}
+                <li class="nav-item d-flex align-items-center me-2 text-dark">
+                  <i class="bi bi-person-circle me-1 text-primary"></i>
+                  <strong>{{ user.username }}</strong>
+                </li>
+                <li class="nav-item">
+                  <form method="post" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                      <i class="bi bi-box-arrow-right me-1"></i> 
+                    </button>
+                  </form>
+                </li>
+              {% else %}
+                <li class="nav-item">
+                  <a class="btn btn-primary btn-sm" href="{% url 'login' %}">
+                    <i class="bi bi-box-arrow-in-right me-1"></i> เข้าสู่ระบบ
+                  </a>
+                </li>
+              {% endif %}
+            </ul>
           </div>
         </div>
       </div>
