@@ -361,7 +361,6 @@ def explode_courses_to_units(courses: pd.DataFrame) -> pd.DataFrame:
 
 # ==================== layer 4 start ==========================
 
-
 def initialize_population(
     courses: pd.DataFrame,
     ga_free: pd.DataFrame,
@@ -464,9 +463,9 @@ def initialize_population(
             if candidate.empty:
                 continue
 
-            candidate = candidate.sort_values(
-                ["day_of_week", "start_time", "room_name"]
-            ).reset_index(drop=True)
+            # candidate = candidate.sort_values(
+            #     ["day_of_week", "start_time", "room_name"]
+            # ).reset_index(drop=True)
 
             placed_rows, used_idx = [], []
 
