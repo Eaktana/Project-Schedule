@@ -26,6 +26,7 @@ SECRET_KEY = 'django-insecure-r*muc@%*zckokvla*-nn-srq^*18w@jam=bzwsz&f(me5dox)6
 DEBUG = True
 
 ALLOWED_HOSTS = [
+    "createschedule.duckdns.org",
     "103.216.158.194",  # ไม่มีพอร์ต (Django ไม่ใส่พอร์ตในรายการนี้)
     "localhost",
     "127.0.0.1",
@@ -33,6 +34,8 @@ ALLOWED_HOSTS = [
 
 CSRF_TRUSTED_ORIGINS = [
     "http://103.216.158.194:50000",
+    "http://createschedule.duckdns.org:50000",
+    "https://createschedule.duckdns.org",
 ]
 # Application definition
 
@@ -80,17 +83,17 @@ WSGI_APPLICATION = 'schedule_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.mysql",
-#         "NAME": "schedule_db",
-#         "USER": "root",
-#         "PASSWORD": "11072003eaK",
-#         "HOST": "127.0.0.1",
-#         "PORT": "3310",
-#         "OPTIONS": {"charset": "utf8mb4"},
-#     }
-# }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": "schedule_db",
+        "USER": "root",
+        "PASSWORD": "11072003eaK",
+        "HOST": "127.0.0.1",
+        "PORT": "3310",
+        "OPTIONS": {"charset": "utf8mb4"},
+    }
+}
 
 
 # DATABASES = {
@@ -105,17 +108,17 @@ WSGI_APPLICATION = 'schedule_project.wsgi.application'
 #     }
 # }
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'schedule_db',
-        'USER': 'root',
-        'PASSWORD': 'd13b4eff2c7a0354ae2c8bb718cf431a2cb6', 
-        'HOST': '103.216.158.194',
-        'PORT': '50001',
-        'OPTIONS': {'charset': 'utf8mb4'},
-    }
-}
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': 'schedule_db',
+#         'USER': 'root',
+#         'PASSWORD': 'd13b4eff2c7a0354ae2c8bb718cf431a2cb6', 
+#         'HOST': '103.216.158.194',
+#         'PORT': '50001',
+#         'OPTIONS': {'charset': 'utf8mb4'},
+#     }
+# }
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
@@ -141,12 +144,13 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = "Asia/Bangkok"
 
 USE_I18N = True
 
 USE_TZ = True
 
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
