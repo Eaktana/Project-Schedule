@@ -29,11 +29,14 @@ def _qs_to_df(qs, fields):
     """แปลง QuerySet ของ Django → DataFrame ของ pandas"""
     return pd.DataFrame(list(qs.values(*fields)))
 
+def fetch_all_from_db(user) -> Dict[str, pd.DataFrame]:
+    """ดึงข้อมูลดิบทั้งหมดจากฐานข้อมูลของ user (multi-user support)"""
+    if user is None:
+        raise ValueError("fetch_all_from_db() ต้องการ user ที่ล็อกอินแล้ว")
 
-def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
-    """ดึงข้อมูลดิบทั้งหมดจากฐานข้อมูล (ยังไม่กรอง/ยังไม่ประมวลผล)"""
+    # Courses ของ user
     courses = _qs_to_df(
-        CourseSchedule.objects.all(),
+        CourseSchedule.objects.filter(created_by=user),
         [
             "id",
             "teacher_name_course",
@@ -47,8 +50,9 @@ def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
         ],
     )
 
+    # PreSchedules ของ user
     preschedules = _qs_to_df(
-        PreSchedule.objects.all(),
+        PreSchedule.objects.filter(created_by=user),
         [
             "id",
             "teacher_name_pre",
@@ -66,8 +70,9 @@ def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
         ],
     )
 
+    # WeekActivities ของ user
     weekactivities = _qs_to_df(
-        WeekActivity.objects.all(),
+        WeekActivity.objects.filter(created_by=user),
         [
             "id",
             "act_name_activity",
@@ -78,13 +83,15 @@ def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
         ],
     )
 
+    # Rooms (scoped by user)
     rooms = _qs_to_df(
-        Room.objects.select_related("room_type"),
+        Room.objects.select_related("room_type").filter(created_by=user),
         ["id", "name", "room_type__name"],
     ).rename(columns={"name": "room_name", "room_type__name": "room_type"})
 
+    # GroupAllows (scoped by user)
     groupallows = _qs_to_df(
-        GroupAllow.objects.select_related("group_type", "slot"),
+        GroupAllow.objects.select_related("group_type", "slot").filter(created_by=user),
         [
             "id",
             "group_type__id",
@@ -103,23 +110,16 @@ def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
         }
     )
 
-    # ===== เติม group_type_id ให้ courses โดยไม่แก้สคีมา =====
-    sg_df = pd.DataFrame(list(StudentGroup.objects.values("name", "group_type_id")))
+    # เติม group_type_id ให้ courses (join กับ StudentGroup)
+    sg_df = pd.DataFrame(
+        list(StudentGroup.objects.filter(created_by=user).values("name", "group_type_id"))
+    )
 
     if sg_df.empty:
         courses["group_type_id"] = pd.Series(dtype="Int64")
     else:
         sg_df["name_clean"] = sg_df["name"].fillna("").str.strip()
-
-        courses["sg_name_clean"] = (
-            courses["student_group_name_course"].fillna("").str.strip()
-        )
-        # pd.set_option("display.max_rows", None)   # แสดงทุกแถว
-        # pd.set_option("display.max_colwidth", None)  # ให้ข้อความยาวแค่ไหนก็แสดงครบ
-
-        # print(sg_df["name_clean"])
-        # print(courses["sg_name_clean"])
-        # exit()
+        courses["sg_name_clean"] = courses["student_group_name_course"].fillna("").str.strip()
 
         courses = courses.merge(
             sg_df[["name_clean", "group_type_id"]],
@@ -127,10 +127,8 @@ def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
             right_on="name_clean",
             how="left",
         )
-        # .drop(columns=["name_clean", "sg_name_clean"])
 
         courses["group_type_id"] = courses["group_type_id"].astype("Int64")
-    # ===== จบส่วนเติม group_type_id =====
 
     return {
         "courses": courses,
@@ -139,7 +137,6 @@ def fetch_all_from_db() -> Dict[str, pd.DataFrame]:
         "rooms": rooms,
         "groupallows": groupallows,
     }
-
 
 # ==================== layer 1 start ==========================
 
@@ -365,310 +362,6 @@ def explode_courses_to_units(courses: pd.DataFrame) -> pd.DataFrame:
 # ==================== layer 4 start ==========================
 
 
-# def initialize_population(
-#     courses: pd.DataFrame,
-#     ga_free: pd.DataFrame,
-#     pop_size,
-#     seed=42,
-#     cancel_event=None,
-# ):
-#     """
-#     สร้างประชากรเริ่มต้น:
-#     - ลูปตาม pop_size
-#     - ในแต่ละ individual: copy courses/ga_free
-#     - จัดเป็นก้อนวิชา (subject_code, section, group_type_id, type, room_type_course)
-#     - หา slot ที่ group_id == group_type_id และ room_type == room_type_course
-#     - ถ้าวางครบ → ติดตั้งเข้าตาราง / ลบออกจาก working set
-#     """
-#     count_runtime = 0
-#     rng = random.Random(seed)
-
-#     def has_conflict(current_rows, new_row):
-#         t_key = (
-#             new_row["teacher"],
-#             new_row["day_of_week"],
-#             new_row["start_time"],
-#             new_row["stop_time"],
-#         )
-#         s_key = (
-#             new_row["student_group"],
-#             new_row["day_of_week"],
-#             new_row["start_time"],
-#             new_row["stop_time"],
-#         )
-#         r_key = (
-#             new_row["room"],
-#             new_row["day_of_week"],
-#             new_row["start_time"],
-#             new_row["stop_time"],
-#         )
-#         return (
-#             (t_key in teacher_busy) or (s_key in student_busy) or (r_key in room_busy)
-#         )
-
-#     population = []
-#     group_cols = [
-#         "subject_code_course",
-#         "subject_name_course",
-#         "section_course",
-#         "teacher_name_course",
-#         "student_group_name_course",
-#         "room_type_course",
-#         "group_type_id",
-#         "type",
-#     ]
-
-#     def _norm(x):
-#         return str(x).strip().lower() if pd.notna(x) else ""
-
-#     for _ in range(pop_size):
-#         _check_cancel(cancel_event)
-#         work_courses = courses.copy().reset_index(drop=True)
-#         work_ga = ga_free.copy().reset_index(drop=True)
-#         individual = []
-
-#         teacher_busy, student_busy, room_busy = set(), set(), set()
-
-#         if work_courses.empty:
-#             population.append(individual)
-#             continue
-
-#         grouped = list(work_courses.groupby(group_cols, dropna=False))
-#         rng.shuffle(grouped)
-
-#         for gkey, df_units in grouped:
-#             _check_cancel(cancel_event)
-#             (
-#                 sub_code,
-#                 sub_name,
-#                 section,
-#                 teacher,
-#                 student_group,
-#                 room_type,
-#                 gtype_id,
-#                 ctype,
-#             ) = gkey
-#             hours_needed = len(df_units)
-
-#             if pd.isna(gtype_id):
-#                 continue
-
-#             # --- filter ตาม group_id ---
-#             candidate = work_ga[work_ga["group_id"] == int(gtype_id)].copy()
-#             if candidate.empty:
-#                 continue
-
-#             required_room_type = _norm(room_type)
-#             if "room_type" not in candidate.columns:
-#                 continue
-#             candidate = candidate[
-#                 candidate["room_type"].apply(_norm) == required_room_type
-#             ]
-#             if candidate.empty:
-#                 continue
-
-#             # candidate = candidate.sort_values(
-#             #     ["day_of_week", "start_time", "room_name"]
-#             # ).reset_index(drop=True)
-
-#             placed_rows, used_idx = [], []
-
-#             for _, slot in candidate.iterrows():
-#                 if len(placed_rows) >= hours_needed:
-#                     break
-#                 _check_cancel(cancel_event)
-#                 new_row = {
-#                     "subject_code": sub_code,
-#                     "subject_name": sub_name,
-#                     "teacher": teacher,
-#                     "student_group": student_group,
-#                     "section": section,
-#                     "type": ctype,
-#                     "hours": 1,
-#                     "day_of_week": slot["day_of_week"],
-#                     "start_time": slot["start_time"],
-#                     "stop_time": slot["stop_time"],
-#                     "room": slot["room_name"],
-#                     "group_type_id": gtype_id,
-#                     "room_type_course": room_type,
-#                     "unit_idx": int(df_units.iloc[0].get("unit_idx", 1)),
-#                     "unit_total": int(df_units.iloc[0].get("unit_total", hours_needed)),
-#                 }
-#                 if has_conflict(individual, new_row):
-#                     # ── Heuristic: RANDOM SWAP (สุ่มสลับกับวิชาที่ลงแล้ว) ──
-#                     # แนวคิด: สุ่ม victim ที่ room_type เดียวกัน → เสนอ "สลับช่องกัน"
-#                     # ผ่านก็ติดตั้งจริง ไม่ผ่านก็สุ่มตัวถัดไป (มีลิมิตกันวนยาว)
-
-#                     # ===== helpers =====
-#                     def _busy_keys(row):
-#                         return (
-#                             (row["teacher"], row["day_of_week"], row["start_time"], row["stop_time"]),
-#                             (row["student_group"], row["day_of_week"], row["start_time"], row["stop_time"]),
-#                             (row["room"], row["day_of_week"], row["start_time"], row["stop_time"]),
-#                         )
-
-#                     def _conflict_if(row, tbusy, sbusy, rbusy):
-#                         t_key, s_key, r_key = _busy_keys(row)
-#                         return (t_key in tbusy) or (s_key in sbusy) or (r_key in rbusy)
-
-#                     # ถูกกติกา groupallow/room_type ของ "แถวนี้" หรือไม่ (ดูจาก ga_free ของ user)
-#                     def _legal_for(row):
-#                         rt = str(row["room_type_course"]).strip().lower()
-#                         return not ga_free[
-#                             (ga_free["group_id"] == int(row["group_type_id"])) &
-#                             (ga_free["day_of_week"] == row["day_of_week"]) &
-#                             (ga_free["start_time"] == row["start_time"]) &
-#                             (ga_free["stop_time"] == row["stop_time"]) &
-#                             (ga_free["room_type"].astype(str).str.strip().str.lower() == rt)
-#                         ].empty
-
-#                     # ===== เลือก victims แบบสุ่ม =====
-#                     # เลือกเฉพาะที่ room_type เดียวกัน เพื่อลดโอกาส invalid หลังสลับ
-#                     victims_pool = [
-#                         r for r in individual
-#                         if str(r.get("room_type_course","")).strip().lower()
-#                            == str(new_row.get("room_type_course","")).strip().lower()
-#                     ]
-#                     if not victims_pool:
-#                         continue
-
-#                     rng.shuffle(victims_pool)
-#                     max_tries = min(25, len(victims_pool))  # ลิมิตความพยายาม (ปรับได้)
-#                     swapped = False
-
-#                     for i in range(max_tries):
-#                         victim = victims_pool[i]
-
-#                         # ข้อเสนอการสลับ: เราไปนั่งช่อง victim, victim มาอยู่ช่องเรา
-#                         new_at_victim = dict(new_row)
-#                         new_at_victim.update({
-#                             "day_of_week": victim["day_of_week"],
-#                             "start_time":  victim["start_time"],
-#                             "stop_time":   victim["stop_time"],
-#                             "room":        victim["room"],
-#                         })
-
-#                         victim_at_new = dict(victim)
-#                         victim_at_new.update({
-#                             "day_of_week": new_row["day_of_week"],
-#                             "start_time":  new_row["start_time"],
-#                             "stop_time":   new_row["stop_time"],
-#                             "room":        new_row["room"],
-#                         })
-
-#                         # ต้องถูกกติกาของแต่ละคนก่อน
-#                         if not (_legal_for(new_at_victim) and _legal_for(victim_at_new)):
-#                             continue
-
-#                         # ถอด victim ออกจาก busy sets ชั่วคราวเพื่อทดสอบชน
-#                         tbusy = set(teacher_busy); sbusy = set(student_busy); rbusy = set(room_busy)
-#                         vt, vs, vr = _busy_keys(victim)
-#                         if vt in tbusy: tbusy.remove(vt)
-#                         if vs in sbusy: sbusy.remove(vs)
-#                         if vr in rbusy: rbusy.remove(vr)
-
-#                         # new_at_victim ต้องไม่ชน
-#                         if _conflict_if(new_at_victim, tbusy, sbusy, rbusy):
-#                             continue
-
-#                         # ใส่ new_at_victim ลงไปก่อน → แล้วทดสอบ victim_at_new ต่อ
-#                         nt, ns, nr = _busy_keys(new_at_victim)
-#                         tbusy.add(nt); sbusy.add(ns); rbusy.add(nr)
-
-#                         if _conflict_if(victim_at_new, tbusy, sbusy, rbusy):
-#                             continue
-
-#                         # ✅ commit การสลับจริง
-#                         if vt in teacher_busy: teacher_busy.remove(vt)
-#                         if vs in student_busy: student_busy.remove(vs)
-#                         if vr in room_busy:    room_busy.remove(vr)
-
-#                         teacher_busy.add(nt); student_busy.add(ns); room_busy.add(nr)
-#                         vt2, vs2, vr2 = _busy_keys(victim_at_new)
-#                         teacher_busy.add(vt2); student_busy.add(vs2); room_busy.add(vr2)
-
-#                         # อัปเดต individual: ลบ victim เก่า → ใส่ victim หลังสลับ + ใส่ new_at_victim
-#                         individual.remove(victim)
-#                         individual.append(victim_at_new)
-#                         placed_rows.append(new_at_victim)
-
-#                         swapped = True
-#                         break
-
-#                     if swapped:
-#                         continue  # ไป slot ถัดไปได้เลย (วางชั่วโมงนี้สำเร็จแล้ว)
-#                     # ถ้ายังไม่สำเร็จภายใน max_tries → ข้าม slot นี้ (รอ GA รุ่นถัดไป/หน่วยถัดไปช่วยแก้)
-#                     continue
-
-#                 placed_rows.append(new_row)
-#                 used_idx.append(slot.name)
-#                 teacher_busy.add(
-#                     (
-#                         teacher,
-#                         new_row["day_of_week"],
-#                         new_row["start_time"],
-#                         new_row["stop_time"],
-#                     )
-#                 )
-#                 student_busy.add(
-#                     (
-#                         student_group,
-#                         new_row["day_of_week"],
-#                         new_row["start_time"],
-#                         new_row["stop_time"],
-#                     )
-#                 )
-#                 room_busy.add(
-#                     (
-#                         new_row["room"],
-#                         new_row["day_of_week"],
-#                         new_row["start_time"],
-#                         new_row["stop_time"],
-#                     )
-#                 )
-
-#             if len(placed_rows) == hours_needed:
-#                 individual.extend(placed_rows)
-#                 if used_idx:
-#                     used_slots = candidate.loc[
-#                         used_idx,
-#                         ["day_of_week", "start_time", "stop_time", "room_name"],
-#                     ]
-#                     work_ga = work_ga.merge(
-#                         used_slots.assign(_used=1),
-#                         on=["day_of_week", "start_time", "stop_time", "room_name"],
-#                         how="left",
-#                     )
-#                     work_ga = (
-#                         work_ga[work_ga["_used"].isna()]
-#                         .drop(columns=["_used"])
-#                         .reset_index(drop=True)
-#                     )
-
-#                 mask = pd.Series(True, index=work_courses.index)
-#                 for col, val in zip(group_cols, gkey):
-#                     if pd.isna(val):
-#                         mask &= work_courses[col].isna()
-#                     else:
-#                         mask &= work_courses[col] == val
-#                 work_courses = work_courses[~mask].reset_index(drop=True)
-#             else:
-#                 print("❌ ไม่สามารถวางครบได้:", gkey)
-#                 print("  hours_needed:", hours_needed, "แต่ได้จริง:", len(placed_rows))
-#                 print("  placed_rows:")
-#                 for r in placed_rows:
-#                     print("   ", r["subject_code"], r["subject_name"], 
-#                         r["teacher"], r["student_group"], 
-#                         r["day_of_week"], r["start_time"], "-", r["stop_time"], 
-#                         "room:", r["room"])
-#                 print("-" * 50)
-#                 continue
-
-#         population.append(individual)
-#         count_runtime = count_runtime + 1
-#         print(count_runtime)
-#     return population
-
 def initialize_population(
     courses: pd.DataFrame,
     ga_free: pd.DataFrame,
@@ -771,9 +464,9 @@ def initialize_population(
             if candidate.empty:
                 continue
 
-            # candidate = candidate.sort_values(
-            #     ["day_of_week", "start_time", "room_name"]
-            # ).reset_index(drop=True)
+            candidate = candidate.sort_values(
+                ["day_of_week", "start_time", "room_name"]
+            ).reset_index(drop=True)
 
             placed_rows, used_idx = [], []
 
@@ -1227,7 +920,8 @@ def run_genetic_algorithm(
 
 
 # ==================== layer 4 end ==========================
-def save_ga_result(schedule_rows):
+def save_ga_result(schedule_rows, user):
+    """บันทึกผลลัพธ์ของ Genetic Algorithm ลงฐานข้อมูล โดยผูกกับ user"""
     objs = []
     for row in schedule_rows:
         objs.append(
@@ -1243,46 +937,45 @@ def save_ga_result(schedule_rows):
                 start_time=row["start_time"],
                 stop_time=row["stop_time"],
                 room=row.get("room"),
+                created_by=user,   # ✅ ผูกกับ user
             )
         )
     GeneratedSchedule.objects.bulk_create(objs)
 
 
-def run_genetic_algorithm_from_db(cancel_event=None) -> Dict[str, Any]:
-    """ดึงข้อมูลทั้งหมด + เตรียมข้อมูลสำหรับ Genetic Algorithm (ยังไม่รันจริง)"""
+def run_genetic_algorithm_from_db(user, cancel_event=None) -> Dict[str, Any]:
+    """ดึงข้อมูลเฉพาะของ user แล้วรัน Genetic Algorithm"""
+    if user is None:
+        raise ValueError("run_genetic_algorithm_from_db() ต้องการ user ที่ล็อกอินแล้ว")
+
     # ========= layer 1 ============
-    data = fetch_all_from_db()
+    data = fetch_all_from_db(user)  # ✅ ดึงเฉพาะข้อมูลของ user
     data["groupallows"] = apply_groupallow_blocking(
         data["groupallows"], data["weekactivities"]
     )
-    # print(tabulate(data["groupallows"], headers="keys", tablefmt="grid", showindex=False))
-    # exit()
 
     # ========= layer 2 ============
     ga_with_rooms = expand_groupallows_with_rooms(data["groupallows"], data["rooms"])
-    time_slot = apply_preschedule_blocking(ga_with_rooms, data["preschedules"])
-    data["time_slot"] = time_slot
-
-    # print(tabulate(data["time_slot"], headers="keys", tablefmt="grid", showindex=False))
-    # exit()
+    data["time_slot"] = apply_preschedule_blocking(
+        ga_with_rooms, data["preschedules"]
+    )
 
     # ========= layer 3 ============
     data["courses"] = explode_courses_to_units(data["courses"])
-    print("=== success ===")
+
     # ========= layer 4 ============
     try:
         result = run_genetic_algorithm(
             data, generations=10, pop_size=10, cancel_event=cancel_event
         )
     except GenerationCancelled:
-        # ไม่เซฟผลลัพธ์ และโยนขึ้นไป/หรือคืนสถานะให้ view ตัดสินใจ
-        # ทางเลือกที่ 1: ส่งต่อให้ view จับแล้วตอบ 204
-        raise
-        # ทางเลือกที่ 2 (ถ้าอยากคืน dict):
-        # return {"status": "cancelled"}
+        raise  # ให้ views.py ดักและตอบ status 204
 
-    print("=== success ===")
-    save_ga_result(result["schedule"])   # ← จะไม่เรียกถึงบรรทัดนี้ถ้า raise จากด้านบน
+    # ✅ เคลียร์ตารางเก่าของ user ก่อน save ใหม่
+    GeneratedSchedule.objects.filter(created_by=user).delete()
+
+    # ✅ บันทึกผลใหม่
+    save_ga_result(result["schedule"], user)
 
     best_sched = result["schedule"]
     return {
