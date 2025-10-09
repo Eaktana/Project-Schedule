@@ -75,6 +75,13 @@ DAY_ORDER = Case(
     output_field=IntegerField(),
 )
 
+def _overlap_q(day_field, start_field, stop_field, day, start, stop):
+    """
+    ชน = วันเดียวกัน และ max(startA,startB) < min(stopA,stopB)
+    """
+    return Q(**{day_field: day}) & Q(**{start_field + "__lt": stop}) & Q(**{stop_field + "__gt": start})
+
+
 def slot_start_hour(ts: str) -> int:
     m = re.search(r"(\d{1,2})(?::\d{2})?", ts or "")
     return int(m.group(1)) if m else 0
@@ -542,6 +549,28 @@ def add_course(request):
                 json_dumps_params={"ensure_ascii": False},
             )
 
+        code_in = norm_code(data.get("subject_code_course", ""))
+        section_in = (data.get("section_course") or "").strip()
+
+        if code_in and section_in:
+            pre_exists = PreSchedule.objects.filter(
+                subject_code_pre=code_in,
+                section_pre=section_in,
+                created_by=request.user,
+            ).exists()
+            if pre_exists:
+                return JsonResponse(
+                    {
+                        "status": "error",
+                        "message": (
+                            f"วิชา {code_in} กลุ่ม {section_in} มีอยู่แล้วในหน้า Pre "
+                            f"กรุณาจัดการที่หน้าเดียวเท่านั้น"
+                        ),
+                    },
+                    status=400,
+                    json_dumps_params={"ensure_ascii": False},
+                )
+
         teacher_name = (
             _teacher_name_from_id(data.get("teacher_id"))
             or data.get("teacher_name")
@@ -627,6 +656,8 @@ def add_course_bulk(request):
                 duplicate_list.append(f"{code} (sec {section})")
                 continue
 
+
+
             teacher_name = (
                 _teacher_name_from_id(row.get("teacher_id"))
                 or row.get("teacher_name")
@@ -710,6 +741,28 @@ def update_course(request, id):
                 status=400,
                 json_dumps_params={"ensure_ascii": False},
             )
+
+        code_in = norm_code(data.get("subject_code_course", course.subject_code_course)) or course.subject_code_course
+        section_in = (data.get("section_course", course.section_course) or "").strip()
+
+        if code_in and section_in:
+            pre_exists = PreSchedule.objects.filter(
+                subject_code_pre=code_in,
+                section_pre=section_in,
+                created_by=request.user,
+            ).exists()
+            if pre_exists:
+                return JsonResponse(
+                    {
+                        "status": "error",
+                        "message": (
+                            f"วิชา {code_in} กลุ่ม {section_in} มีอยู่แล้วในหน้า Pre "
+                            f"กรุณาจัดการที่หน้าเดียวเท่านั้น"
+                        ),
+                    },
+                    status=400,
+                    json_dumps_params={"ensure_ascii": False},
+                )
 
         # อัปเดตฟิลด์
         course.teacher_name_course = (
@@ -798,8 +851,7 @@ def delete_course(request, id):
             status=500,
             json_dumps_params={"ensure_ascii": False},
         )
-
-    
+ 
 @login_required(login_url="/login/")
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -986,7 +1038,6 @@ def get_pre(request):
 @login_required(login_url="/login/")
 @csrf_exempt
 @require_http_methods(["POST"])
-# ------------- new add ตรวจสอบใช้ห้องซ้ำกัน-----------------------------------------------
 def add_pre(request):
     """API สำหรับเพิ่มตารางล่วงหน้า (กันชนเวลา + กันซ้ำ วิชา/เซกชัน/ภาคทฤษฎี-ปฏิบัติ[room_type_pre])"""
     try:
@@ -1081,6 +1132,46 @@ def add_pre(request):
                     status=400,
                     json_dumps_params={"ensure_ascii": False},
                 )
+        
+        if day:
+            wk_overlap = (
+                WeekActivity.objects
+                .filter(created_by=request.user, day_activity=day)
+                .filter(
+                    Q(start_time_activity__lt=stop_time) &
+                    Q(stop_time_activity__gt=start_time)
+                )
+                .exists()
+            )
+            if wk_overlap:
+                return JsonResponse(
+                    {
+                        "status": "error",
+                        "message": (
+                            f"เวลาทับกับ 'กิจกรรมประจำสัปดาห์' วัน {day} "
+                            f"ช่วง {start_time.strftime('%H:%M')}-{stop_time.strftime('%H:%M')}"
+                        ),
+                    },
+                    status=400,
+                    json_dumps_params={"ensure_ascii": False},
+                )
+
+        if code and section_val:
+            course_exists = CourseSchedule.objects.filter(
+                subject_code_course=code,
+                section_course=section_val,
+                created_by=request.user,
+            ).exists()
+            if course_exists:
+                return JsonResponse(
+                    {
+                        "status": "error",
+                        "message": f"วิชา {code} กลุ่ม {section_val} มีอยู่แล้วในหน้า Course "
+                                f"กรุณาจัดการที่หน้าเดียวเท่านั้น",
+                    },
+                    status=400,
+                    json_dumps_params={"ensure_ascii": False},
+                )
 
         # --- ผ่านแล้ว -> บันทึก ---
         pre = PreSchedule.objects.create(
@@ -1133,7 +1224,6 @@ def pre_delete_all(request):
 @login_required(login_url="/login/")
 @csrf_exempt
 @require_http_methods(["PUT"])
-# ------------- new update ตรวจสอบใช้ห้องซ้ำกัน-----------------------------------------------
 def update_pre(request, id):
     """API สำหรับแก้ไขตารางล่วงหน้า (กันชนเวลา + กันซ้ำ วิชา/กลุ่ม/ภาคทฤษฎี-ปฏิบัติ[room_type_pre])"""
     try:
@@ -1259,6 +1349,37 @@ def update_pre(request, id):
                             f"เวลาซ้ำกับรายการอื่นในห้อง {room_name_val} วัน {day_val} "
                             f"ช่วง {start_time.strftime('%H:%M')}-{stop_time.strftime('%H:%M')}"
                         ),
+                    },
+                    status=400,
+                    json_dumps_params={"ensure_ascii": False},
+                )
+        
+        wk_overlap = (
+            WeekActivity.objects
+            .filter(created_by=request.user, day_activity=day_val)
+            .filter(Q(start_time_activity__lt=stop_time) & Q(stop_time_activity__gt=start_time))
+            .exists()
+        )
+        if wk_overlap:
+            return JsonResponse(
+                {"status": "error",
+                 "message": (f"เวลาทับกับ 'กิจกรรมประจำสัปดาห์' วัน {day_val} "
+                             f"ช่วง {start_time.strftime('%H:%M')}-{stop_time.strftime('%H:%M')}")},
+                status=400, json_dumps_params={"ensure_ascii": False}
+            )
+
+        if code_in and section_val:
+            course_exists = CourseSchedule.objects.filter(
+                subject_code_course=code_in,
+                section_course=section_val,
+                created_by=request.user,
+            ).exists()
+            if course_exists:
+                return JsonResponse(
+                    {
+                        "status": "error",
+                        "message": f"วิชา {code_in} กลุ่ม {section_val} มีอยู่แล้วในหน้า Course "
+                                f"กรุณาจัดการที่หน้าเดียวเท่านั้น",
                     },
                     status=400,
                     json_dumps_params={"ensure_ascii": False},
@@ -1433,7 +1554,6 @@ def _overlap_exists(day, start_time, stop_time, exclude_id=None, created_by=None
     if exclude_id:
         qs = qs.exclude(id=exclude_id)
 
-    # ✅ เช็คซ้ำแบบ boolean
     for w in qs:
         if (
             (start_time >= w.start_time_activity and start_time < w.stop_time_activity)
@@ -1535,6 +1655,20 @@ def add_activity(request):
         status=400, json_dumps_params={"ensure_ascii": False},
         )
 
+        # 3) ✨ กันชนกับ PreSchedule ของ user นี้
+        pre_overlap = PreSchedule.objects.filter(
+            created_by=request.user, day_pre=day
+        ).filter(
+            Q(start_time_pre__lt=stop_time) & Q(stop_time_pre__gt=start_time)
+        ).exists()
+        if pre_overlap:
+            return JsonResponse(
+                {"status": "error",
+                 "message": (f"เวลาทับกับ 'วิชาล่วงหน้า' วัน {day} "
+                             f"ช่วง {start_time.strftime('%H:%M')}-{stop_time.strftime('%H:%M')}")},
+                status=400, json_dumps_params={"ensure_ascii": False},
+            )
+
         # ผ่านตรวจ -> สร้าง
         activity = WeekActivity.objects.create(
             act_name_activity=name,
@@ -1581,6 +1715,14 @@ def add_activity_bulk(request):
                 continue
             if _overlap_exists(day, start_time, stop_time, created_by=request.user):
                 return JsonResponse({"status": "error", "message": "เวลานี้ซ้ำกับกิจกรรมอื่น"})
+
+            pre_overlap = PreSchedule.objects.filter(
+                created_by=request.user, day_pre=day
+            ).filter(
+                Q(start_time_pre__lt=stop_time) & Q(stop_time_pre__gt=start_time)
+            ).exists()
+            if pre_overlap:
+                continue
 
             act = WeekActivity.objects.create(
                 act_name_activity=name,
@@ -1642,6 +1784,18 @@ def update_activity(request, id):
                 status=400, json_dumps_params={"ensure_ascii": False},
             )
 
+        pre_overlap = PreSchedule.objects.filter(
+            created_by=request.user, day_pre=day
+        ).filter(
+            Q(start_time_pre__lt=stop_time) & Q(stop_time_pre__gt=start_time)
+        ).exists()
+        if pre_overlap:
+            return JsonResponse(
+                {"status": "error",
+                 "message": (f"เวลาทับกับ 'วิชาล่วงหน้า' วัน {day} "
+                             f"ช่วง {start_time.strftime('%H:%M')}-{stop_time.strftime('%H:%M')}")},
+                status=400, json_dumps_params={"ensure_ascii": False},
+            )
 
         # ผ่านตรวจ -> บันทึก
         activity.act_name_activity = name

@@ -462,6 +462,10 @@ def initialize_population(
             ]
             if candidate.empty:
                 continue
+            
+            idxs = list(candidate.index)
+            rng.shuffle(idxs)
+            candidate = candidate.loc[idxs].reset_index(drop=True)
 
             # candidate = candidate.sort_values(
             #     ["day_of_week", "start_time", "room_name"]
@@ -566,7 +570,6 @@ def initialize_population(
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-
 def make_allow_set(time_slot: pd.DataFrame):
     """
     สร้างชุด key ที่อนุญาตให้ใช้ (group_id, day, start, stop, room)
@@ -584,7 +587,6 @@ def make_allow_set(time_slot: pd.DataFrame):
         )
         for _, r in time_slot.iterrows()
     )
-
 
 def is_conflict(existing_rows, g):
     """ชนไหม? (ครู/นักศึกษา/ห้อง ซ้อนเวลาเดียวกัน)"""
@@ -961,6 +963,11 @@ def run_genetic_algorithm_from_db(user, cancel_event=None) -> Dict[str, Any]:
 
     # ========= layer 3 ============
     data["courses"] = explode_courses_to_units(data["courses"])
+
+    print("GA/groupallows days:", sorted(data["groupallows"]["day_of_week"].dropna().unique().tolist()))
+    print("GA/time_slot days:", sorted(data["time_slot"]["day_of_week"].dropna().unique().tolist()))
+    print("time_slot by day:\n", data["time_slot"]["day_of_week"].value_counts())
+
 
     # ========= layer 4 ============
     try:

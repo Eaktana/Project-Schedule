@@ -208,7 +208,7 @@ function confirmDelete(button){
     const handler = async () => {
       try {
         btnConfirmDel.disabled = true;
-        const r = await fetch(`api/course/delete/${id}/`, {
+        const r = await fetch(`/api/course/delete/${id}/`, {
           method: "DELETE",
           headers: { "X-CSRFToken": getCookie("csrftoken") },
         })
@@ -269,34 +269,47 @@ function openEditModal(button){
   new bootstrap.Modal(document.getElementById("editModal")).show();
 }
 
-function saveEdit(){
+async function saveEdit(){
   const payload = {
-    teacher_id                 : document.getElementById("editTeacherSelect").value,
-    subject_code_course        : document.getElementById("editSubjectCodeSelect").value,
-    subject_name_course        : document.getElementById("editSubjectNameSelect").value,
-    room_type_course           : document.getElementById("editRoomTypeSelect").value,
-    section_course             : composeSectionFromNum(document.getElementById("editSectionNum").value),
-    student_group_id           : document.getElementById("editStudentGroupSelect").value,
-    theory_slot_amount_course  : Number(document.getElementById("editTheoryHours").value || 0),
-    lab_slot_amount_course     : Number(document.getElementById("editLabHours").value || 0)
+    teacher_id                : document.getElementById("editTeacherSelect").value,
+    subject_code_course       : document.getElementById("editSubjectCodeSelect").value,
+    subject_name_course       : document.getElementById("editSubjectNameSelect").value,
+    room_type_course          : document.getElementById("editRoomTypeSelect").value,
+    section_course            : composeSectionFromNum(document.getElementById("editSectionNum").value),
+    student_group_id          : document.getElementById("editStudentGroupSelect").value,
+    theory_slot_amount_course : Number(document.getElementById("editTheoryHours").value || 0),
+    lab_slot_amount_course    : Number(document.getElementById("editLabHours").value || 0)
   };
 
-  fetch(`/api/course/update/${editId}/`, {
-    method:'PUT',
-    headers:{'Content-Type':'application/json','X-CSRFToken': getCookie('csrftoken')},
-    body: JSON.stringify(payload)
-  })
-  .then(r=>r.json())
-  .then(d=>{
-    if(d.status==='success'){
+  try {
+    const r = await fetch(`/api/course/update/${editId}/`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken')
+      },
+      body: JSON.stringify(payload)
+    });
+
+    // พยายามอ่านเป็น JSON ก่อน ถ้าไม่ได้ให้ตกไปใช้ raw text
+    let bodyText = await r.text();
+    let data = {};
+    try { data = bodyText ? JSON.parse(bodyText) : {}; } catch (_) {}
+
+    if (r.ok && data.status === 'success') {
       flashToast('แก้ไขข้อมูลเรียบร้อยแล้ว','success','แก้ไขสำเร็จ');
       bootstrap.Modal.getInstance(document.getElementById("editModal")).hide();
       location.reload();
-    }else{
-      showNotification('เกิดข้อผิดพลาดในการแก้ไขข้อมูล','error');
+      return;
     }
-  })
-  .catch(()=> showNotification('เกิดข้อผิดพลาดในการแก้ไขข้อมูล','error'));
+
+    // ไม่ ok หรือ status != success → แสดงข้อความจาก backend ถ้ามี
+    const msg = (data && data.message) ? data.message : (bodyText || `HTTP ${r.status}`);
+    showNotification('เกิดข้อผิดพลาด: ' + msg, 'error');
+
+  } catch (e) {
+    showNotification('เกิดข้อผิดพลาดในการแก้ไขข้อมูล', 'error');
+  }
 }
 
 function refreshData(){ location.reload(); }
@@ -328,7 +341,7 @@ function deleteAllCourses(){
     const handler = async () => {
       try {
         btnConfirmAll.disabled = true;
-        const r = await fetch('api/course/delete-all/', {
+        const r = await fetch('/api/course/delete-all/', {
           method:'DELETE',
           headers:{ 'X-CSRFToken': getCookie('csrftoken') }
         });
