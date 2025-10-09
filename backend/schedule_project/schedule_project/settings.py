@@ -80,17 +80,17 @@ WSGI_APPLICATION = 'schedule_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.mysql",
-#         "NAME": "schedule_db",
-#         "USER": "root",
-#         "PASSWORD": "11072003eaK",
-#         "HOST": "127.0.0.1",
-#         "PORT": "3310",
-#         "OPTIONS": {"charset": "utf8mb4"},
-#     }
-# }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": "schedule_db",
+        "USER": "root",
+        "PASSWORD": "11072003eaK",
+        "HOST": "127.0.0.1",
+        "PORT": "3310",
+        "OPTIONS": {"charset": "utf8mb4"},
+    }
+}
 
 
 # DATABASES = {
@@ -105,17 +105,17 @@ WSGI_APPLICATION = 'schedule_project.wsgi.application'
 #     }
 # }
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'schedule_db',
-        'USER': 'root',
-        'PASSWORD': 'd13b4eff2c7a0354ae2c8bb718cf431a2cb6', 
-        'HOST': '103.216.158.194',
-        'PORT': '50001',
-        'OPTIONS': {'charset': 'utf8mb4'},
-    }
-}
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': 'schedule_db',
+#         'USER': 'root',
+#         'PASSWORD': 'd13b4eff2c7a0354ae2c8bb718cf431a2cb6', 
+#         'HOST': '103.216.158.194',
+#         'PORT': '50001',
+#         'OPTIONS': {'charset': 'utf8mb4'},
+#     }
+# }
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
@@ -159,9 +159,9 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# WKHTMLTOPDF_CMD = r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
+WKHTMLTOPDF_CMD = r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
 
-WKHTMLTOPDF_CMD = "/usr/bin/wkhtmltopdf"
+# WKHTMLTOPDF_CMD = "/usr/bin/wkhtmltopdf"
 
 # settings.py
 LOGIN_URL = '/login/'

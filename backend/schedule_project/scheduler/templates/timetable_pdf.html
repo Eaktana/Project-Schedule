@@ -1,19 +1,32 @@
+{% load static %}
 <!doctype html>
 <html lang="th">
 <head>
 <meta charset="utf-8">
 <title>{{ title }}</title>
 <style>
+  /* ==== Register Thai fonts from Django static ==== */
+  @font-face{
+    font-family: 'Sarabun';
+    src: url("{% static 'fonts/Sarabun-Regular.ttf' %}") format('truetype');
+    font-weight: 400; font-style: normal;
+  }
+  @font-face{
+    font-family: 'Sarabun';
+    src: url("{% static 'fonts/Sarabun-Bold.ttf' %}") format('truetype');
+    font-weight: 700; font-style: normal;
+  }
+
   /* หน้ากระดาษแนวนอน + ระยะขอบ */
   @page { size: A4 landscape; margin: 14mm 12mm; }
 
   /* ฟอนต์และขนาดมาตรฐานสำหรับ PDF */
-  body { font-family: "TH Sarabun New","Sarabun",Tahoma,sans-serif; font-size: 12px; color:#000; }
-  h1 { font-size: 20px; margin: 0 0 8px; }
+  body { font-family: 'Sarabun','TH Sarabun New',Tahoma,sans-serif; font-size: 12px; color:#000; }
+  h1 { font-size: 20px; margin: 0 0 8px; font-weight:700; }
   .meta { margin-bottom: 8px; }
 
   /* ตารางหลัก */
-  table { width:100%; border-collapse: collapse; table-layout: fixed; }
+  table { width:100%; border-collapse: collapse; table-layout: fixed; font-family:'Sarabun',Tahoma,sans-serif; }
   th, td { border:1px solid #cfd8dc; padding:3px 4px; }
   thead th { background:#f5f7fa; text-align:center; font-size:11px; }
   .day { width:110px; white-space:nowrap; background:#fafbfc; }
@@ -23,20 +36,19 @@
 
   /* กล่องวิชา (ขาวดำ) */
   .card {
-    height:100%;
-    width:100%;
+    height:100%; width:100%;
     display: table;           /* wkhtmltopdf-friendly */
     border:1px solid #9aa4aa;
     border-radius: 3px;
-    color:#000;
-    background:#fff;
+    color:#000; background:#fff;
+    font-family:'Sarabun',Tahoma,sans-serif;
   }
   .card-inner { display: table-cell; vertical-align: middle; text-align: center; padding: 2px 3px; }
   .meta-line { font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
   /* ส่วนใต้ตารางหลัก */
   .summary-wrap { margin-top: 14px; page-break-inside: avoid; }
-  .summary-title { font-size: 16px; margin: 0 0 6px; }
+  .summary-title { font-size: 16px; margin: 0 0 6px; font-weight:700; }
   .summary td, .summary th { font-size: 11px; }
   .summary thead th { background:#eef3f7; }
   .right { text-align: right; }
