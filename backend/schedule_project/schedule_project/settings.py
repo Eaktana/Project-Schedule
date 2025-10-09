@@ -26,7 +26,6 @@ SECRET_KEY = 'django-insecure-r*muc@%*zckokvla*-nn-srq^*18w@jam=bzwsz&f(me5dox)6
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    "createschedule.duckdns.org",
     "103.216.158.194",  
     "localhost",
     "127.0.0.1",
@@ -34,8 +33,6 @@ ALLOWED_HOSTS = [
 
 CSRF_TRUSTED_ORIGINS = [
     "http://103.216.158.194:50000",
-    "http://createschedule.duckdns.org:50000",
-    "https://createschedule.duckdns.org",
 ]
 # Application definition
 
@@ -162,7 +159,9 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-WKHTMLTOPDF_CMD = r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
+# WKHTMLTOPDF_CMD = r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
+
+WKHTMLTOPDF_CMD = "/usr/bin/wkhtmltopdf"
 
 # settings.py
 LOGIN_URL = '/login/'
