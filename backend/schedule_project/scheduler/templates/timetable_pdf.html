@@ -6,15 +6,15 @@
 <title>{{ title }}</title>
 <style>
   /* ==== Register Thai fonts from Django static ==== */
-  @font-face{
+  @font-face {
     font-family: 'Sarabun';
-    src: url("{% static 'fonts/Sarabun-Regular.ttf' %}") format('truetype');
-    font-weight: 400; font-style: normal;
+    src: url("{{ font_regular_url }}") format('truetype');
+    font-weight: 400;
   }
-  @font-face{
+  @font-face {
     font-family: 'Sarabun';
-    src: url("{% static 'fonts/Sarabun-Bold.ttf' %}") format('truetype');
-    font-weight: 700; font-style: normal;
+    src: url("{{ font_bold_url }}") format('truetype');
+    font-weight: 700;
   }
 
   /* หน้ากระดาษแนวนอน + ระยะขอบ */

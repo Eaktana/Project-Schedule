@@ -28,6 +28,7 @@ from django.contrib.auth.decorators import login_required
 
 from decimal import Decimal
 import math
+from pathlib import Path
 
 # views.py
 from .main import run_genetic_algorithm_from_db, GenerationCancelled
@@ -3543,15 +3544,82 @@ def _build_summary_rows(items: list[dict]) -> list[dict]:
     return rows
 
 # ---------- เรนเดอร์ HTML -> PDF ----------
-def _render_pdf_html(context: dict) -> bytes:
+# def _render_pdf_html(context: dict) -> bytes:
     
-    html = render_to_string("timetable_pdf.html", context)
+#     html = render_to_string("timetable_pdf.html", context)
 
+#     try:
+#         import pdfkit
+#     except Exception as e:
+#         logger.exception("pdfkit import failed")
+#         raise RuntimeError(f"pdfkit import failed: {e}") from e
+
+#     options = {
+#         "encoding": "UTF-8",
+#         "page-size": "A4",
+#         "orientation": "Landscape",
+#         "margin-top": "14mm",
+#         "margin-right": "12mm",
+#         "margin-bottom": "14mm",
+#         "margin-left": "12mm",
+#         "enable-local-file-access": None,
+#         "quiet": "",
+#         "grayscale": "",
+#     }
+    
+#     config = None
+#     wkhtml = getattr(settings, "WKHTMLTOPDF_CMD", None)
+#     if wkhtml:
+#         config = pdfkit.configuration(wkhtmltopdf=wkhtml)
+
+#     try:
+#         # False => คืนค่าเป็น bytes
+#         pdf_bytes = pdfkit.from_string(html, False, options=options, configuration=config)
+#         return pdf_bytes
+#     except Exception as e:
+#         logger.exception("pdfkit render failed")
+#         raise RuntimeError(f"wkhtmltopdf render failed: {e}") from e
+
+def _render_pdf_html(ctx: dict) -> bytes:
+    from django.conf import settings
+    from django.template.loader import render_to_string
+    import platform
+    from pathlib import Path
+
+    # ---- เตรียมพาธ static (รองรับกรณี STATIC_ROOT = None) ----
+    app_static_dir = (Path(settings.BASE_DIR) / "scheduler" / "static").resolve()
+    static_root = (Path(settings.STATIC_ROOT).resolve()
+                   if getattr(settings, "STATIC_ROOT", None)
+                   else app_static_dir)
+
+    # ---- พาธฟอนต์ (ต้องมีไฟล์อยู่จริง) ----
+    font_regular_file = app_static_dir / "fonts" / "Sarabun-Regular.ttf"
+    font_bold_file    = app_static_dir / "fonts" / "Sarabun-Bold.ttf"
+
+    # สร้าง file:// URI ให้ template ใช้กับ @font-face
+    ctx = {
+        **ctx,
+        "font_regular_url": font_regular_file.as_uri(),  # -> file:///... ถูกต้องทั้ง Win/Linux
+        "font_bold_url":    font_bold_file.as_uri(),
+    }
+
+    # ---- render HTML ----
+    html = render_to_string("timetable_pdf.html", ctx)
+
+    # ---- pdfkit / wkhtmltopdf ----
     try:
         import pdfkit
     except Exception as e:
         logger.exception("pdfkit import failed")
         raise RuntimeError(f"pdfkit import failed: {e}") from e
+
+    wkhtml_path = getattr(settings, "WKHTMLTOPDF_CMD", None)
+    if not wkhtml_path:
+        wkhtml_path = (r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
+                       if platform.system().lower().startswith("win")
+                       else "/usr/bin/wkhtmltopdf")
+
+    config = pdfkit.configuration(wkhtmltopdf=wkhtml_path)
 
     options = {
         "encoding": "UTF-8",
@@ -3561,23 +3629,19 @@ def _render_pdf_html(context: dict) -> bytes:
         "margin-right": "12mm",
         "margin-bottom": "14mm",
         "margin-left": "12mm",
-        "enable-local-file-access": None,
+        "enable-local-file-access": None,  # สำคัญสำหรับ file://
         "quiet": "",
-        "grayscale": "",
+        # "grayscale": "",
+        "allow": [str(app_static_dir), str(static_root)],  # อนุญาตให้อ่านโฟลเดอร์เหล่านี้
+        "load-error-handling": "ignore",                   # กันล้มถ้า resource อื่นหาย
     }
-    
-    config = None
-    wkhtml = getattr(settings, "WKHTMLTOPDF_CMD", None)
-    if wkhtml:
-        config = pdfkit.configuration(wkhtmltopdf=wkhtml)
 
     try:
-        # False => คืนค่าเป็น bytes
-        pdf_bytes = pdfkit.from_string(html, False, options=options, configuration=config)
-        return pdf_bytes
+        return pdfkit.from_string(html, False, options=options, configuration=config)
     except Exception as e:
         logger.exception("pdfkit render failed")
         raise RuntimeError(f"wkhtmltopdf render failed: {e}") from e
+
 
 # ---------- สร้างชื่อไฟล์สวย ๆ ----------
 def _safe_filename(s: str) -> str:
