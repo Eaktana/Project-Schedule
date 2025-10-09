@@ -11,9 +11,11 @@ function setSelectValue(sel, val) {
     sel.value = val;
   }
 }
+
+// คืนค่า absolute URL เสมอ เช่น "https://host:port/api/..."
 function api(url) {
-  if (!url.startsWith('/')) return '/' + url;
-  return url;
+  const p = url.startsWith('/') ? url : '/' + url;
+  return `${location.origin}${p}`;
 }
 
 function composeSectionFromNum(n) {
@@ -31,8 +33,8 @@ let pendingDeleteId = null;
 const delModalEl    = document.getElementById('confirmDeleteCourseModal');
 const delAllModalEl = document.getElementById('confirmDeleteAllCourseModal');
 const delNameEl     = document.getElementById('del_course_name');
-let btnConfirmDel = document.getElementById('btnConfirmDeleteCourse');
-let btnConfirmAll = document.getElementById('btnConfirmDeleteAllCourse');
+let btnConfirmDel   = document.getElementById('btnConfirmDeleteCourse');
+let btnConfirmAll   = document.getElementById('btnConfirmDeleteAllCourse');
 
 let bsDel    = delModalEl    ? new bootstrap.Modal(delModalEl)    : null;
 let bsDelAll = delAllModalEl ? new bootstrap.Modal(delAllModalEl) : null;
@@ -118,7 +120,7 @@ async function populateSelect(url, selectId, mapItem) {
   const prev = sel.value;
   sel.innerHTML = '<option value="">กำลังโหลด...</option>';
   try {
-    const r = await fetch(url);
+    const r = await fetch(api(url), { credentials: 'include' });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const payload = await r.json();
     const results = Array.isArray(payload) ? payload : (payload.results || payload.items);
@@ -181,15 +183,22 @@ function addCourse(){
     return;
   }
 
-  fetch('/api/course/add/', {
+  fetch(api('api/course/add/'), {
     method:'POST',
     headers:{'Content-Type':'application/json','X-CSRFToken': getCookie('csrftoken')},
+    credentials: 'include',
     body: JSON.stringify(payload)
   })
-  .then(r=>r.json())
-  .then(d=>{
-    if(d.status==='success'){flashToast('เพิ่มข้อมูลรายวิชาสำเร็จ','success','เพิ่มสำเร็จ'); location.reload(); }
-    else{ showNotification('เกิดข้อผิดพลาด: '+(d.message||'ไม่สามารถเพิ่มข้อมูลได้'),'error'); }
+  .then(async r=>{
+    const t = await r.text(); 
+    let d = {};
+    try { d = t ? JSON.parse(t) : {}; } catch(_) {}
+    if(r.ok && d.status==='success'){
+      flashToast('เพิ่มข้อมูลรายวิชาสำเร็จ','success','เพิ่มสำเร็จ'); 
+      location.reload();
+    } else {
+      showNotification('เกิดข้อผิดพลาด: '+(d.message||t||'ไม่สามารถเพิ่มข้อมูลได้'),'error');
+    }
   })
   .catch(()=> showNotification('เกิดข้อผิดพลาดในการเพิ่มข้อมูล','error'));
 }
@@ -200,11 +209,14 @@ function confirmDelete(button){
   const id   = row.getAttribute("data-id");
   const name = row.querySelector("td")?.innerText?.trim() || "รายวิชา";
 
-  if ((!bsDel || !btnConfirmDel) && document.getElementById('confirmDeleteCourseModal')) {
-    // re-initialize ถ้าเพิ่งเจอ DOM ตอนนี้
+  // lazy re-init ถ้าสคริปต์โหลดก่อน DOM modal
+  if (!bsDel && document.getElementById('confirmDeleteCourseModal')) {
     bsDel = new bootstrap.Modal(document.getElementById('confirmDeleteCourseModal'));
+  }
+  if (!btnConfirmDel) {
     btnConfirmDel = document.getElementById('btnConfirmDeleteCourse');
-  }  
+  }
+
   if (bsDel && btnConfirmDel) {
     pendingDeleteId = id;
     if (delNameEl) delNameEl.textContent = name;
@@ -217,18 +229,18 @@ function confirmDelete(button){
           method: "DELETE",
           headers: { "X-CSRFToken": getCookie("csrftoken") },
           credentials: "include",
-        })
+        });
 
-        const d = await r.json();
-        if (d.status === 'success') {
+        const raw = await r.text();
+        let d = {}; try { d = raw ? JSON.parse(raw) : {}; } catch(_){}
+        if (r.ok && d.status === 'success') {
           flashToast('ลบข้อมูลเรียบร้อยแล้ว','success','ลบสำเร็จ');
-          location.reload();
           bsDel.hide();
-          row.remove(); // หรือใช้ flashToast + reload ก็ได้
+          location.reload(); // หรือ row.remove();
         } else {
-          showNotification('เกิดข้อผิดพลาดในการลบข้อมูล','error','ลบไม่สำเร็จ');
+          showNotification('เกิดข้อผิดพลาดในการลบข้อมูล: ' + (d.message || raw || `HTTP ${r.status}`),'error','ลบไม่สำเร็จ');
         }
-      } catch {
+      } catch (e) {
         showNotification('เกิดข้อผิดพลาดในการลบข้อมูล','error','ลบไม่สำเร็จ');
       } finally {
         btnConfirmDel.disabled = false;
@@ -238,17 +250,22 @@ function confirmDelete(button){
     };
     btnConfirmDel.addEventListener('click', handler, { once:true });
   } else {
-    // fallback เดิม (ถ้าไม่มี modal)
+    // fallback (ไม่มี modal)
     if(!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้?")) return;
     fetch(api(`api/course/delete/${id}/`), {
       method:'DELETE',
       headers:{ 'X-CSRFToken': getCookie('csrftoken') },
       credentials: 'include',
     })
-    .then(r=>r.json())
-    .then(d=>{
-      if(d.status==='success'){ row.remove(); flashToast('ลบข้อมูลเรียบร้อยแล้ว','success','ลบสำเร็จ'); }
-      else{ showNotification('เกิดข้อผิดพลาดในการลบข้อมูล','error','ลบไม่สำเร็จ'); }
+    .then(async r=>{
+      const raw = await r.text();
+      let d={}; try { d = raw ? JSON.parse(raw) : {}; } catch(_){}
+      if(r.ok && d.status==='success'){
+        row.remove(); 
+        flashToast('ลบข้อมูลเรียบร้อยแล้ว','success','ลบสำเร็จ');
+      } else {
+        showNotification('เกิดข้อผิดพลาดในการลบข้อมูล: ' + (d.message || raw || `HTTP ${r.status}`),'error','ลบไม่สำเร็จ');
+      }
     })
     .catch(()=> showNotification('เกิดข้อผิดพลาดในการลบข้อมูล','error','ลบไม่สำเร็จ'));
   }
@@ -289,7 +306,7 @@ async function saveEdit(){
   };
 
   try {
-    const r = await fetch(`/api/course/update/${editId}/`, {
+    const r = await fetch(api(`api/course/update/${editId}/`), {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -325,24 +342,32 @@ function refreshData(){ location.reload(); }
 // ===== init wiring (pattern เดียวกับ pre.js) =====
 document.addEventListener('DOMContentLoaded', async () => {
   // --- Add Form dropdowns ---
-  await populateSelect('/api/teachers/', 'teacher_select', t => ({ value: t.value ?? t.id, label: t.label ?? t.name }));
-  await populateSelect('/api/subjects/', 'subject_code_select', s => ({ value: s.code, label: s.code, dataset:{ sid:String(s.id ?? s.sid ?? s.code) } }));
-  await populateSelect('/api/subjects/', 'subject_name_select', s => ({ value: s.name, label: s.name, dataset:{ sid:String(s.id ?? s.sid ?? s.code) } }));
+  await populateSelect('api/teachers/', 'teacher_select', t => ({ value: t.value ?? t.id, label: t.label ?? t.name }));
+  await populateSelect('api/subjects/', 'subject_code_select', s => ({ value: s.code, label: s.code, dataset:{ sid:String(s.id ?? s.sid ?? s.code) } }));
+  await populateSelect('api/subjects/', 'subject_name_select', s => ({ value: s.name, label: s.name, dataset:{ sid:String(s.id ?? s.sid ?? s.code) } }));
   wireSubjectCodeNameSync('subject_code_select','subject_name_select');
-  await populateSelect('/api/lookups/room-types/','room_type_select', i => ({ value: i.name, label: i.name }));
-  await populateSelect('/api/lookups/student-groups/', 'student_group_select', i => ({ value: i.name, label: i.name }));
+  await populateSelect('api/lookups/room-types/','room_type_select', i => ({ value: i.name, label: i.name }));
+  await populateSelect('api/lookups/student-groups/', 'student_group_select', i => ({ value: i.name, label: i.name }));
 
   // --- Edit Modal dropdowns ---
-  await populateSelect('/api/teachers/', 'editTeacherSelect', t => ({ value: t.value ?? t.id, label: t.label ?? t.name }));
-  await populateSelect('/api/subjects/', 'editSubjectCodeSelect', s => ({ value: s.code, label: s.code, dataset:{ sid:String(s.id ?? s.sid ?? s.code) } }));
-  await populateSelect('/api/subjects/', 'editSubjectNameSelect', s => ({ value: s.name, label: s.name, dataset:{ sid:String(s.id ?? s.sid ?? s.code) } }));
+  await populateSelect('api/teachers/', 'editTeacherSelect', t => ({ value: t.value ?? t.id, label: t.label ?? t.name }));
+  await populateSelect('api/subjects/', 'editSubjectCodeSelect', s => ({ value: s.code, label: s.code, dataset:{ sid:String(s.id ?? s.sid ?? s.code) } }));
+  await populateSelect('api/subjects/', 'editSubjectNameSelect', s => ({ value: s.name, label: s.name, dataset:{ sid:String(s.id ?? s.sid ?? s.code) } }));
   wireSubjectCodeNameSync('editSubjectCodeSelect','editSubjectNameSelect');
-  await populateSelect('/api/lookups/room-types/','editRoomTypeSelect', i => ({ value: i.name, label: i.name }));
-  await populateSelect('/api/lookups/student-groups/','editStudentGroupSelect', i => ({ value: i.name, label: i.name }));
+  await populateSelect('api/lookups/room-types/','editRoomTypeSelect', i => ({ value: i.name, label: i.name }));
+  await populateSelect('api/lookups/student-groups/','editStudentGroupSelect', i => ({ value: i.name, label: i.name }));
 });
 
 // ===== ลบทั้งหมด =====
 function deleteAllCourses(){
+  // lazy re-init สำหรับ modal ลบทั้งหมด
+  if (!bsDelAll && document.getElementById('confirmDeleteAllCourseModal')) {
+    bsDelAll = new bootstrap.Modal(document.getElementById('confirmDeleteAllCourseModal'));
+  }
+  if (!btnConfirmAll) {
+    btnConfirmAll = document.getElementById('btnConfirmDeleteAllCourse');
+  }
+
   if (bsDelAll && btnConfirmAll) {
     bsDelAll.show();
 
@@ -354,13 +379,14 @@ function deleteAllCourses(){
           headers:{ 'X-CSRFToken': getCookie('csrftoken') },
           credentials: 'include',
         });
-        const d = await r.json();
-        if (d.status === 'success') {
+        const raw = await r.text();
+        let d={}; try { d = raw ? JSON.parse(raw) : {}; } catch(_){}
+        if (r.ok && d.status === 'success') {
           flashToast('ลบข้อมูลรายวิชาทั้งหมดเรียบร้อยแล้ว','success','ลบทั้งหมดสำเร็จ');
           bsDelAll.hide();
           location.reload(); // หรือจะเคลียร์ตารางด้วย JS ก็ได้
         } else {
-          showNotification('เกิดข้อผิดพลาดในการลบทั้งหมด: '+(d.message||''),'error','ลบไม่สำเร็จ');
+          showNotification('เกิดข้อผิดพลาดในการลบทั้งหมด: '+(d.message||raw||`HTTP ${r.status}`),'error','ลบไม่สำเร็จ');
         }
       } catch {
         showNotification('เกิดข้อผิดพลาดในการลบข้อมูลทั้งหมด','error','ลบไม่สำเร็จ');
@@ -378,13 +404,14 @@ function deleteAllCourses(){
       headers:{ 'X-CSRFToken': getCookie('csrftoken') },
       credentials: 'include',
     })
-    .then(r=>r.json())
-    .then(d=>{
-      if(d.status==='success'){
+    .then(async r=>{
+      const raw = await r.text();
+      let d={}; try { d = raw ? JSON.parse(raw) : {}; } catch(_){}
+      if(r.ok && d.status==='success'){
         flashToast('ลบข้อมูลรายวิชาทั้งหมดเรียบร้อยแล้ว','success','ลบทั้งหมดสำเร็จ');
         location.reload();
       }else{
-        showNotification('เกิดข้อผิดพลาดในการลบทั้งหมด: '+(d.message||''),'error','ลบไม่สำเร็จ');
+        showNotification('เกิดข้อผิดพลาดในการลบทั้งหมด: '+(d.message||raw||`HTTP ${r.status}`),'error','ลบไม่สำเร็จ');
       }
     })
     .catch(()=> showNotification('เกิดข้อผิดพลาดในการลบข้อมูลทั้งหมด','error','ลบไม่สำเร็จ'));
