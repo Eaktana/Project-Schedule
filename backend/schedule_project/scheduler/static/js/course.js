@@ -34,8 +34,8 @@ const delNameEl     = document.getElementById('del_course_name');
 let btnConfirmDel = document.getElementById('btnConfirmDeleteCourse');
 let btnConfirmAll = document.getElementById('btnConfirmDeleteAllCourse');
 
-const bsDel    = delModalEl    ? new bootstrap.Modal(delModalEl)    : null;
-const bsDelAll = delAllModalEl ? new bootstrap.Modal(delAllModalEl) : null;
+let bsDel    = delModalEl    ? new bootstrap.Modal(delModalEl)    : null;
+let bsDelAll = delAllModalEl ? new bootstrap.Modal(delAllModalEl) : null;
 
 /* ---------- Notifications: Toast แบบเดียวกับ weekactivity ---------- */
 function escapeHtml(s){
@@ -242,7 +242,8 @@ function confirmDelete(button){
     if(!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้?")) return;
     fetch(api(`api/course/delete/${id}/`), {
       method:'DELETE',
-      headers:{ 'X-CSRFToken': getCookie('csrftoken') }
+      headers:{ 'X-CSRFToken': getCookie('csrftoken') },
+      credentials: 'include',
     })
     .then(r=>r.json())
     .then(d=>{
@@ -294,6 +295,7 @@ async function saveEdit(){
         'Content-Type': 'application/json',
         'X-CSRFToken': getCookie('csrftoken')
       },
+      credentials: 'include',
       body: JSON.stringify(payload)
     });
 
@@ -373,7 +375,8 @@ function deleteAllCourses(){
     if(!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลรายวิชาทั้งหมด?")) return;
     fetch(api('api/course/delete-all/'), {
       method:'DELETE',
-      headers:{ 'X-CSRFToken': getCookie('csrftoken') }
+      headers:{ 'X-CSRFToken': getCookie('csrftoken') },
+      credentials: 'include',
     })
     .then(r=>r.json())
     .then(d=>{
