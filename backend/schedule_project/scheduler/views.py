@@ -2651,6 +2651,7 @@ def room_list(request):
             "name": r.name,
             "type": r.room_type_id,
             "type_name": r.room_type.name if r.room_type_id else "",
+            "is_active": bool(r.is_active),
         }
         for r in qs
     ]
@@ -2666,6 +2667,10 @@ def room_add(request):
     raw_id = data.get("id")  # optional
     name = (data.get("name") or "").strip()
     type_id = data.get("type")
+    is_active = data.get("is_active", True)
+    
+    if isinstance(is_active, str):
+        is_active = True if is_active == "1" else False if is_active == "0" else bool(is_active)
 
     if not name or not type_id:
         return JsonResponse(
@@ -2680,26 +2685,27 @@ def room_add(request):
                 {"status": "error", "message": "รหัสห้อง (id) ต้องเป็นตัวเลข"}, status=400
             )
         obj, _created = Room.objects.update_or_create(
-            id=rid, 
-            created_by=request.user,  # ✅ กันไม่ให้แก้ของคนอื่น
-            defaults={"name": name, "room_type_id": type_id}
+            id=rid,
+            created_by=request.user,
+            defaults={"name": name, "room_type_id": type_id, "is_active": is_active},
         )
     else:
         if Room.objects.filter(name__iexact=name, created_by=request.user).exists():
             return JsonResponse(
                 {"status": "error", "message": f'ห้อง "{name}" มีอยู่แล้ว'},
-                status=400
+                status=400,
             )
         obj = Room.objects.create(
             name=name,
             room_type_id=type_id,
-            created_by=request.user   # ✅ บันทึกว่าเป็นของ user ไหน
+            is_active=is_active,
+            created_by=request.user,
         )
 
     return JsonResponse(
         {"status": "success", "id": obj.id}, json_dumps_params={"ensure_ascii": False}
     )
-
+    
 @login_required(login_url="/login/")
 @csrf_exempt
 @require_http_methods(["DELETE"])

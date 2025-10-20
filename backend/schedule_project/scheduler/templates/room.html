@@ -23,6 +23,14 @@
           <option value="">-- เลือกประเภทห้อง --</option>
         </select>
       </div>
+      <div class="col-md-4">
+        <label class="form-label" for="room_active_select">นำไปใช้งานกับตารางสอน</label>
+        <select id="room_active_select" class="form-select" required>
+          <option value="">-- ตัวเลือก --</option>
+          <option value="1">ใช้</option>
+          <option value="0">ไม่ใช้</option>
+        </select>
+      </div>
       <div class="col-12">
         <div class="d-flex justify-content-end mt-3 gap-2">
           <button id="btnCancelRoomEdit" type="button" class="btn btn-outline-secondary d-none">ยกเลิก</button>
@@ -60,12 +68,13 @@
               <tr>
                 <th>ชื่อห้องเรียน</th>
                 <th>ประเภทห้อง</th>
-                <th class="text-center" style="width: 200px">จัดการ</th>
+                <th>นำไปใช้งาน</th>
+                <th class="text-center col-actions">จัดการ</th>
               </tr>
             </thead>
             <tbody id="roomTableBody">
               <tr class="empty-row">
-                <td colspan="3" class="text-center text-muted">ไม่มีข้อมูลห้องเรียน</td>
+                <td colspan="4" class="text-center text-muted">ไม่มีข้อมูลห้องเรียน</td>
               </tr>
             </tbody>
           </table>
@@ -93,6 +102,13 @@
           <label class="form-label" for="edit_room_type">ประเภทห้อง</label>
           <select id="edit_room_type" class="form-select">
             <option value="">-- เลือกประเภทห้อง --</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="edit_room_active">นำไปใช้งานกับตารางสอน</label>
+          <select id="edit_room_active" class="form-select">
+            <option value="1">ใช้</option>
+            <option value="0">ไม่ใช้</option>
           </select>
         </div>
         <div class="text-end">
@@ -149,11 +165,14 @@
   .list-shell{border-bottom-left-radius:12px;border-bottom-right-radius:12px;overflow:hidden;background:transparent;}
   .list-scroll{max-height:60vh;overflow-y:auto;scrollbar-gutter:stable both-edges;padding-right:1rem;margin-right:-0.5rem;padding-bottom:0.5rem;}
   .table-rounded{border-radius:12px;background-clip:padding-box;}
+
+  /* เพิ่มเติมเพื่อให้คอลัมน์ ‘จัดการ’ คงที่และปุ่มไม่ตัดบรรทัด */
+  .col-actions { width:200px; white-space:nowrap; }
 </style>
 
 {% endblock %}
 
 {% block scripts %}
 <div id="toastHost" class="toast-container position-fixed top-0 end-0 p-3" style="z-index:1080"></div>
-<script src="{% static 'js/room.js' %}?v=6"></script>
+<script src="{% static 'js/room.js' %}?v=7"></script>
 {% endblock %}

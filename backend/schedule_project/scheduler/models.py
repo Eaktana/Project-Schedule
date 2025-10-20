@@ -220,6 +220,7 @@ class RoomType(models.Model):
 class Room(models.Model):
     name = models.CharField(max_length=50)
     room_type = models.ForeignKey(RoomType, on_delete=models.CASCADE)
+    is_active = models.BooleanField(default=True)
     created_by = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="rooms",
         null=True, blank=True

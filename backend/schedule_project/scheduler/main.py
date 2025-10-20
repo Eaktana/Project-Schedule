@@ -91,7 +91,8 @@ def fetch_all_from_db(user) -> Dict[str, pd.DataFrame]:
 
     # Rooms (scoped by user)
     rooms = _qs_to_df(
-        Room.objects.select_related("room_type").filter(created_by=user),
+        Room.objects.select_related("room_type")
+            .filter(created_by=user, is_active=True),   # << กรองเฉพาะห้องที่ใช้งาน
         ["id", "name", "room_type__name"],
     ).rename(columns={"name": "room_name", "room_type__name": "room_type"})
 
@@ -256,7 +257,7 @@ def explode_courses_to_units(courses: pd.DataFrame) -> pd.DataFrame:
 
 # บังคับ “วางครบทุกหน่วย” (โทษหนักถ้ายังเหลือ)
 REQUIRE_FULL_COVERAGE    = True
-MISSING_UNIT_PENALTY     = 600
+MISSING_UNIT_PENALTY     = 400
 # ตรวจ capacity ล่วงหน้า (ตั้ง True เพื่อให้ raise หากไม่พอจริง)
 HARD_FAIL_IF_IMPOSSIBLE  = False
 
@@ -448,9 +449,9 @@ def _slot_order_key(g: Dict[str, Any]) -> Tuple[int, time]:
 
 # ===== Contiguity scoring (same-day back-to-back) =====
 # ใช้ “ต่อชนิด” (type) + “วันเดียวกัน” ภายในคีย์เดียวกัน (subject, section, teacher, group)
-CONTIG_ADJACENT_BONUS = 8       # +6 ต่อ "คู่คาบที่ติดกัน"
-CONTIG_GAP_PENALTY     = 2       # -3 ต่อ "ช่องว่าง" ระหว่างคาบในวันเดียวกัน
-CONTIG_SEGMENT_PENALTY = 1       # -1 ต่อก้อน (segment) ที่เพิ่มในวันเดียวกัน
+CONTIG_ADJACENT_BONUS = 50      # 70 ต่อ "คู่คาบที่ติดกัน"
+CONTIG_GAP_PENALTY     = 30      # 70 ต่อ "ช่องว่าง" ระหว่างคาบในวันเดียวกัน
+CONTIG_SEGMENT_PENALTY = 20       # 50 ต่อก้อน (segment) ที่เพิ่มในวันเดียวกัน
 
 REQUIRE_SAME_ROOM_FOR_CONTIG = False  # True = ต้องอยู่ห้องเดียวกันถึงจะถือว่าติดกัน
 
@@ -674,19 +675,19 @@ def evaluate_individual(individual, allow_set, room_type_of=None):
     # -------- ส่วนที่ 1: โทษ/รางวัลพื้นฐานต่อ gene --------
     for g in individual:
         if _is_unassigned(g):
-            penalty += 80
+            penalty += 50
             continue
 
         if g["start_time"] >= g["stop_time"]:
-            penalty += 10
+            penalty += 100
 
         t = (g["teacher"], g["day_of_week"], g["start_time"], g["stop_time"])
         s = (g["student_group"], g["day_of_week"], g["start_time"], g["stop_time"])
         r = (g["room"], g["day_of_week"], g["start_time"], g["stop_time"])
 
-        if t in seen_t: penalty += 60
-        if s in seen_s: penalty += 60
-        if r in seen_r: penalty += 60
+        if t in seen_t: penalty += 120
+        if s in seen_s: penalty += 120
+        if r in seen_r: penalty += 120
 
         seen_t.add(t); seen_s.add(s); seen_r.add(r)
 
@@ -696,16 +697,16 @@ def evaluate_individual(individual, allow_set, room_type_of=None):
             g["day_of_week"], g["start_time"], g["stop_time"], g["room"]
         )
         if (gtype is None) or (key not in allow_set):
-            penalty += 60
+            penalty += 120
 
         if room_type_of is not None:
             req = g.get("room_type_course", None)
             actual = room_type_of.get(g["room"])
             if req and actual and str(req).strip() and str(actual).strip():
                 if str(req).strip() != str(actual).strip():
-                    penalty += 8
+                    penalty += 110
 
-        reward += 3
+        reward += 90
 
     # -------- ส่วนที่ 2: บังคับลำดับ Theory → Lab ต่อรายวิชา/เซกชัน --------
     by_course = defaultdict(list)
@@ -715,7 +716,7 @@ def evaluate_individual(individual, allow_set, room_type_of=None):
         k = (g["subject_code"], g["section"], g["teacher"], g["student_group"])
         by_course[k].append(g)
 
-    ORDER_LAB_BEFORE_THEORY = 50
+    ORDER_LAB_BEFORE_THEORY = 90
     ORDER_LAB_WITHOUT_THEORY = 0
 
     for k, genes in by_course.items():
@@ -1005,7 +1006,7 @@ def run_genetic_algorithm_from_db(user, cancel_event=None) -> Dict[str, Any]:
         result = run_genetic_algorithm(
             data,
             generations=200,  
-            pop_size=30,         
+            pop_size=50,         
             elite_size=2,
             cx_rate=0.1,
             mut_rate=0.1,
