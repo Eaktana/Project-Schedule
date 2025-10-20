@@ -77,7 +77,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'schedule_project.wsgi.application'
 
 
-# Database
+# LOCAL
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 
 # DATABASES = {
@@ -85,26 +85,14 @@ WSGI_APPLICATION = 'schedule_project.wsgi.application'
 #         "ENGINE": "django.db.backends.mysql",
 #         "NAME": "schedule_db",
 #         "USER": "root",
-#         "PASSWORD": "11072003eaK",
+#         "PASSWORD": "1234",
 #         "HOST": "127.0.0.1",
-#         "PORT": "3310",
+#         "PORT": "3306",
 #         "OPTIONS": {"charset": "utf8mb4"},
 #     }
 # }
 
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.mysql',
-#         'NAME': 'schedule_db',
-#         'USER': 'root',
-#         'PASSWORD': '', 
-#         'HOST': '127.0.0.1',
-#         'PORT': '3307',
-#         'OPTIONS': {'charset': 'utf8mb4'},
-#     }
-# }
-
+# PRODDUCTION
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',

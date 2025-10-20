@@ -141,7 +141,7 @@ def fetch_all_from_db(user) -> Dict[str, pd.DataFrame]:
         "groupallows": groupallows,
     }
 
-# ==================== layer 1 =======================
+# ==================== layer 1 ======================= 
 
 def expand_weekactivities_to_slots(df_week: pd.DataFrame) -> pd.DataFrame:
     """แตก WeekActivity ออกเป็นช่วงเวลารายชั่วโมง (เช่น 15-17 → 15-16, 16-17)"""
@@ -256,7 +256,7 @@ def explode_courses_to_units(courses: pd.DataFrame) -> pd.DataFrame:
 
 # บังคับ “วางครบทุกหน่วย” (โทษหนักถ้ายังเหลือ)
 REQUIRE_FULL_COVERAGE    = True
-MISSING_UNIT_PENALTY     = 5000
+MISSING_UNIT_PENALTY     = 600
 # ตรวจ capacity ล่วงหน้า (ตั้ง True เพื่อให้ raise หากไม่พอจริง)
 HARD_FAIL_IF_IMPOSSIBLE  = False
 
@@ -448,8 +448,8 @@ def _slot_order_key(g: Dict[str, Any]) -> Tuple[int, time]:
 
 # ===== Contiguity scoring (same-day back-to-back) =====
 # ใช้ “ต่อชนิด” (type) + “วันเดียวกัน” ภายในคีย์เดียวกัน (subject, section, teacher, group)
-CONTIG_ADJACENT_BONUS = 6       # +6 ต่อ "คู่คาบที่ติดกัน"
-CONTIG_GAP_PENALTY     = 3       # -3 ต่อ "ช่องว่าง" ระหว่างคาบในวันเดียวกัน
+CONTIG_ADJACENT_BONUS = 8       # +6 ต่อ "คู่คาบที่ติดกัน"
+CONTIG_GAP_PENALTY     = 2       # -3 ต่อ "ช่องว่าง" ระหว่างคาบในวันเดียวกัน
 CONTIG_SEGMENT_PENALTY = 1       # -1 ต่อก้อน (segment) ที่เพิ่มในวันเดียวกัน
 
 REQUIRE_SAME_ROOM_FOR_CONTIG = False  # True = ต้องอยู่ห้องเดียวกันถึงจะถือว่าติดกัน
@@ -666,19 +666,6 @@ def initialize_population(
 # ==================== Fitness =======================
 
 def evaluate_individual(individual, allow_set, room_type_of=None):
-    """
-    ฟิตเนส: สูง = ดี
-      - unassigned: -120 ต่อ 1 gene
-      - invalid time: -10
-      - conflict (teacher/student/room): -50 ต่อเคส
-      - not in allow_set: -100
-      - room_type mismatch: -10
-      - NEW: lab ก่อน theory (คอร์ส/เซกชันเดียวกัน): -100 ต่อเคส
-      - lab-only (ไม่มีทฤษฎีในวิชานั้น): 0 (ไม่หัก)
-      + placed valid hour: +1
-      + NEW: contiguity (คาบติดกันในวันเดียวกัน ภายในชนิดเดียวกัน): ให้รางวัล/โทษเพิ่มเติม
-      + NEW: ถ้าเปิด REQUIRE_FULL_COVERAGE จะหักหนักต่อคาบที่ยังไม่ถูกวาง
-    """
     penalty = 0
     reward = 0
 
@@ -687,7 +674,7 @@ def evaluate_individual(individual, allow_set, room_type_of=None):
     # -------- ส่วนที่ 1: โทษ/รางวัลพื้นฐานต่อ gene --------
     for g in individual:
         if _is_unassigned(g):
-            penalty += 120
+            penalty += 80
             continue
 
         if g["start_time"] >= g["stop_time"]:
@@ -697,9 +684,9 @@ def evaluate_individual(individual, allow_set, room_type_of=None):
         s = (g["student_group"], g["day_of_week"], g["start_time"], g["stop_time"])
         r = (g["room"], g["day_of_week"], g["start_time"], g["stop_time"])
 
-        if t in seen_t: penalty += 50
-        if s in seen_s: penalty += 50
-        if r in seen_r: penalty += 50
+        if t in seen_t: penalty += 60
+        if s in seen_s: penalty += 60
+        if r in seen_r: penalty += 60
 
         seen_t.add(t); seen_s.add(s); seen_r.add(r)
 
@@ -709,16 +696,16 @@ def evaluate_individual(individual, allow_set, room_type_of=None):
             g["day_of_week"], g["start_time"], g["stop_time"], g["room"]
         )
         if (gtype is None) or (key not in allow_set):
-            penalty += 100
+            penalty += 60
 
         if room_type_of is not None:
             req = g.get("room_type_course", None)
             actual = room_type_of.get(g["room"])
             if req and actual and str(req).strip() and str(actual).strip():
                 if str(req).strip() != str(actual).strip():
-                    penalty += 10
+                    penalty += 8
 
-        reward += 1
+        reward += 3
 
     # -------- ส่วนที่ 2: บังคับลำดับ Theory → Lab ต่อรายวิชา/เซกชัน --------
     by_course = defaultdict(list)
@@ -728,7 +715,7 @@ def evaluate_individual(individual, allow_set, room_type_of=None):
         k = (g["subject_code"], g["section"], g["teacher"], g["student_group"])
         by_course[k].append(g)
 
-    ORDER_LAB_BEFORE_THEORY = 100
+    ORDER_LAB_BEFORE_THEORY = 50
     ORDER_LAB_WITHOUT_THEORY = 0
 
     for k, genes in by_course.items():
@@ -863,9 +850,9 @@ def run_genetic_algorithm(
     data: Dict[str, pd.DataFrame],
     generations,
     pop_size,
-    elite_size: int = 2,
-    cx_rate: float = 0.9,
-    mut_rate: float = 0.25,
+    elite_size,
+    cx_rate,
+    mut_rate,
     seed: int | None = None,   # << seed เป็น optional
     cancel_event=None
 ):
@@ -1017,12 +1004,12 @@ def run_genetic_algorithm_from_db(user, cancel_event=None) -> Dict[str, Any]:
     try:
         result = run_genetic_algorithm(
             data,
-            generations=50,   # ปรับได้ตามต้องการ
-            pop_size=10,         # ประชากรเล็ก (เร็ว) + ฟิตเนสเน้น contiguity จะค่อยๆดีขึ้น
+            generations=200,  
+            pop_size=30,         
             elite_size=2,
-            cx_rate=0.9,
-            mut_rate=0.35,
-            seed=None,               # สุ่มใหม่ทุกรอบ
+            cx_rate=0.1,
+            mut_rate=0.1,
+            seed=None,              
             cancel_event=cancel_event,
         )
     except GenerationCancelled:
