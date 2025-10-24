@@ -706,7 +706,7 @@ def evaluate_individual(individual, allow_set, room_type_of=None):
                 if str(req).strip() != str(actual).strip():
                     penalty += 110
 
-        reward += 50
+        reward += 90
 
     # -------- ส่วนที่ 2: บังคับลำดับ Theory → Lab ต่อรายวิชา/เซกชัน --------
     by_course = defaultdict(list)
